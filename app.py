@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 from openai import OpenAI
 import json
 import pandas as pd
@@ -124,6 +125,65 @@ def get_festival_summary(query: str):
         return "\n".join(summaries)
     except Exception as exc:
         return f"축제 정보를 가져오지 못했어요: {exc}"
+
+
+def get_destination_bgm(name_kr: str):
+    """도시 분위기에 맞는 유튜브 BGM 플레이리스트를 반환합니다."""
+    bgm_map = {
+        "파리": ("Emily in Paris OST 분위기 플레이리스트", "https://www.youtube.com/watch?v=cTLTG4FTNBQ"),
+        "몽골": ("광활한 초원 드라이브 BGM", "https://www.youtube.com/watch?v=9e9v4M9RjvY"),
+        "치앙마이": ("치앙마이 카페 감성 로파이", "https://www.youtube.com/watch?v=5qap5aO4i9A"),
+        "다낭": ("다낭 해변 선셋 칠 음악", "https://www.youtube.com/watch?v=DWcJFNfaw9c"),
+    }
+
+    for keyword, bgm_info in bgm_map.items():
+        if keyword in name_kr:
+            return bgm_info
+
+    return (
+        "여행 설렘을 높여주는 월드 트래블 무드",
+        "https://www.youtube.com/watch?v=2OEL4P1Rz04",
+    )
+
+
+def render_kakao_share_copy_button(share_text: str):
+    """카카오톡 공유용 텍스트를 클립보드에 복사하는 버튼을 렌더링합니다."""
+    safe_text = json.dumps(share_text)
+
+    components.html(
+        f"""
+        <div style="margin-top:8px; margin-bottom:8px;">
+            <button id="kakao-copy-btn"
+                style="
+                    background:#FEE500;
+                    color:#191919;
+                    border:none;
+                    border-radius:10px;
+                    padding:10px 14px;
+                    font-weight:700;
+                    cursor:pointer;
+                ">
+                📋 카카오톡 공유 텍스트 복사
+            </button>
+            <p id="kakao-copy-status" style="margin-top:8px; font-size:14px;"></p>
+        </div>
+        <script>
+            const button = document.getElementById("kakao-copy-btn");
+            const status = document.getElementById("kakao-copy-status");
+            const textToCopy = {safe_text};
+
+            button.addEventListener("click", async () => {{
+                try {{
+                    await navigator.clipboard.writeText(textToCopy);
+                    status.textContent = "복사 완료! 친구 단톡방에 바로 붙여넣어 투표를 받아보세요 🙌";
+                }} catch (error) {{
+                    status.textContent = "브라우저 권한 문제로 자동 복사에 실패했어요. 아래 텍스트를 수동 복사해 주세요.";
+                }}
+            }});
+        </script>
+        """,
+        height=120,
+    )
 
 
 # 2. 사이드바 (유지)
@@ -260,6 +320,11 @@ if st.button("🚀 여행지 3곳 추천받기"):
                         st.markdown("#### 🎉 현지 축제/이벤트 (검색 기반)")
                         st.markdown(festival_summary)
 
+                        bgm_title, bgm_url = get_destination_bgm(dest['name_kr'])
+                        st.markdown("#### 🎵 여행지 무드 BGM")
+                        st.caption(bgm_title)
+                        st.video(bgm_url)
+
                         col_a, col_b = st.columns(2)
                         with col_a:
                             st.markdown("#### 🗓️ 추천 일정")
@@ -273,6 +338,18 @@ if st.button("🚀 여행지 3곳 추천받기"):
                         st.markdown("---")
                         url = f"https://www.skyscanner.co.kr/transport/flights/sela/{dest['airport_code']}"
                         st.link_button(f"✈️ {dest['name_kr']} 항공권 검색", url)
+
+                st.markdown("---")
+                st.markdown("### 🗳️ 친구들에게 투표받기")
+                share_options = [f"{idx + 1}. {d['name_kr']}" for idx, d in enumerate(destinations[:3])]
+                share_text = (
+                    "나 이번에 여행 가는데 어디가 좋을까? "
+                    + " ".join(share_options)
+                    + " 투표 좀!"
+                )
+                render_kakao_share_copy_button(share_text)
+                st.caption("예시: 나 이번에 여행 가는데 어디가 좋을까? 1. 몽골(별 쏟아짐) 2. 치앙마이(힐링) 3. 다낭(가성비) 투표 좀!")
+                st.text_area("공유 텍스트 미리보기", value=share_text, height=90)
 
             except Exception as e:
                 st.error(f"오류가 발생했습니다: {e}")
