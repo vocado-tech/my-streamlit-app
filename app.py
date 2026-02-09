@@ -15,8 +15,34 @@ st.title("✈️ NoRegret Trip")
 st.subheader("여행 가자 ^~^")
 
 
+def _extract_destination_keywords(query: str):
+    """도시명(국가명) 형태 문자열에서 검색용 키워드를 추출합니다."""
+    base = query.strip()
+    if "(" in base:
+        base = base.split("(")[0].strip()
+    return [query, base]
+
+
+def _get_wikipedia_image(query: str):
+    """Wikipedia 요약 API를 이용해 대표 이미지를 보조 조회합니다."""
+    for keyword in _extract_destination_keywords(query):
+        try:
+            endpoint = f"https://ko.wikipedia.org/api/rest_v1/page/summary/{keyword}"
+            res = requests.get(endpoint, timeout=8)
+            if res.status_code != 200:
+                continue
+            data = res.json()
+            thumb = data.get("thumbnail", {}).get("source")
+            original = data.get("originalimage", {}).get("source")
+            if original or thumb:
+                return original or thumb
+        except requests.RequestException:
+            continue
+    return None
+
+
 def get_landmark_image(query: str):
-    """DuckDuckGo 이미지 검색으로 여행지 대표 이미지를 가져옵니다."""
+    """DuckDuckGo + Wikipedia로 여행지 대표 이미지를 가져옵니다."""
     try:
         with DDGS() as ddgs:
             results = list(
@@ -29,11 +55,24 @@ def get_landmark_image(query: str):
                 )
             )
 
-        if not results:
-            return None, "대표 이미지를 찾지 못했어요."
+        if results:
+            image_url = (
+                results[0].get("image")
+                or results[0].get("thumbnail")
+                or results[0].get("url")
+            )
+            if image_url:
+                return image_url, None
 
-        return results[0].get("image"), None
+        wiki_image = _get_wikipedia_image(query)
+        if wiki_image:
+            return wiki_image, None
+
+        return None, "대표 이미지를 찾지 못했어요."
     except Exception as exc:
+        wiki_image = _get_wikipedia_image(query)
+        if wiki_image:
+            return wiki_image, None
         return None, f"대표 이미지 조회 실패: {exc}"
 
 
@@ -272,12 +311,27 @@ if st.button("🚀 여행지 3곳 추천받기"):
                             "latitude": 위도(숫자),
                             "longitude": 경도(숫자),
                             "reason": "기간과 대륙을 고려한 추천 이유",
-                            "itinerary": "상세 일정 요약",
-                            "total_budget": "총 예상 비용 (1인, 항공포함)",
-                            "budget_detail": "상세 내역"
+                            "itinerary": [
+                                "DAY 1: 오전/오후/저녁 동선을 포함한 상세 일정",
+                                "DAY 2: 이동시간/예약팁/식사 추천 포함",
+                                "..."
+                            ],
+                            "total_budget": "총 예상 비용 (1인, 왕복항공 포함, KRW)",
+                            "budget_detail": [
+                                "왕복 항공권: 000,000원 (성수기/비수기 범위)",
+                                "숙소: 1박 000,000원 x N박 = 000,000원",
+                                "식비: 1일 00,000원 x N일 = 000,000원",
+                                "교통/입장료/투어/기타 비용"
+                            ]
                         }}
                     ]
                 }}
+
+                [일정/예산 품질 규칙]
+                - itinerary는 문자열 하나가 아니라 '일자별 리스트'로 반환하세요. 최소 3개 이상.
+                - 각 일자 항목에는 오전/오후/저녁 활동과 이동 팁을 포함하세요.
+                - total_budget과 budget_detail은 한국 원화 기준으로 작성하세요.
+                - budget_detail은 실제 여행자가 참고 가능한 현실적인 숫자로 작성하세요.
                 """
 
                 # temperature 1.1 유지 (다양성)
@@ -328,12 +382,22 @@ if st.button("🚀 여행지 3곳 추천받기"):
                         col_a, col_b = st.columns(2)
                         with col_a:
                             st.markdown("#### 🗓️ 추천 일정")
-                            st.write(dest['itinerary'])
+                            itinerary_items = dest.get('itinerary', [])
+                            if isinstance(itinerary_items, list):
+                                for item in itinerary_items:
+                                    st.markdown(f"- {item}")
+                            else:
+                                st.write(itinerary_items)
 
                         with col_b:
                             st.markdown("#### 💰 예상 예산")
                             st.success(f"**{dest['total_budget']}**")
-                            st.caption(dest['budget_detail'])
+                            budget_items = dest.get('budget_detail', [])
+                            if isinstance(budget_items, list):
+                                for item in budget_items:
+                                    st.caption(f"• {item}")
+                            else:
+                                st.caption(budget_items)
 
                         st.markdown("---")
                         url = f"https://www.skyscanner.co.kr/transport/flights/sela/{dest['airport_code']}"
