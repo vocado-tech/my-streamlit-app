@@ -2,6 +2,9 @@ import streamlit as st
 from openai import OpenAI
 import json
 import pandas as pd
+import requests
+from datetime import datetime
+
 
 # 1. 페이지 설정 (유지)
 st.set_page_config(page_title="NoRegret Trip", page_icon="✈️", layout="wide")
@@ -9,9 +12,130 @@ st.set_page_config(page_title="NoRegret Trip", page_icon="✈️", layout="wide"
 st.title("✈️ NoRegret Trip")
 st.subheader("여행 가자 ^~^")
 
+
+def get_landmark_image(query: str, google_api_key: str, search_engine_id: str):
+    """Google Custom Search API로 여행지 대표 이미지를 가져옵니다."""
+    if not google_api_key or not search_engine_id:
+        return None, "Google Custom Search API Key/CX가 없어서 대표 사진을 불러오지 못했어요."
+
+    endpoint = "https://www.googleapis.com/customsearch/v1"
+    params = {
+        "key": google_api_key,
+        "cx": search_engine_id,
+        "q": f"{query} landmark",
+        "searchType": "image",
+        "num": 1,
+        "safe": "active",
+        "imgType": "photo",
+        "imgSize": "xlarge",
+    }
+
+    try:
+        response = requests.get(endpoint, params=params, timeout=12)
+        response.raise_for_status()
+        items = response.json().get("items", [])
+        if not items:
+            return None, "대표 이미지를 찾지 못했어요."
+        return items[0].get("link"), None
+    except requests.RequestException as exc:
+        return None, f"대표 이미지 조회 실패: {exc}"
+
+
+def get_weather_summary(latitude: float, longitude: float):
+    """Open-Meteo로 향후 7일 날씨 요약을 반환합니다."""
+    endpoint = "https://api.open-meteo.com/v1/forecast"
+    params = {
+        "latitude": latitude,
+        "longitude": longitude,
+        "daily": "weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max",
+        "timezone": "auto",
+        "forecast_days": 7,
+    }
+
+    weather_code_map = {
+        0: "맑음",
+        1: "대체로 맑음",
+        2: "부분적으로 흐림",
+        3: "흐림",
+        45: "안개",
+        48: "서리 안개",
+        51: "약한 이슬비",
+        61: "약한 비",
+        63: "비",
+        65: "강한 비",
+        71: "약한 눈",
+        73: "눈",
+        80: "소나기",
+        95: "뇌우",
+    }
+
+    try:
+        response = requests.get(endpoint, params=params, timeout=12)
+        response.raise_for_status()
+        data = response.json().get("daily", {})
+        if not data:
+            return "날씨 데이터를 불러오지 못했어요."
+
+        today_idx = 0
+        max_temp = data["temperature_2m_max"][today_idx]
+        min_temp = data["temperature_2m_min"][today_idx]
+        rain_prob = data["precipitation_probability_max"][today_idx]
+        weather_code = data["weathercode"][today_idx]
+
+        weather_text = weather_code_map.get(weather_code, "변동성 있는 날씨")
+        rainy_days = sum(1 for p in data["precipitation_probability_max"] if p and p >= 60)
+
+        return (
+            f"오늘 기준 {weather_text}, {min_temp:.0f}~{max_temp:.0f}°C 예상. "
+            f"향후 7일 중 비 가능성 높은 날은 {rainy_days}일입니다."
+        )
+    except requests.RequestException as exc:
+        return f"날씨 정보를 가져오지 못했어요: {exc}"
+
+
+def get_festival_summary(query: str, google_api_key: str, search_engine_id: str):
+    """Google Custom Search API로 축제/이벤트 정보 요약을 반환합니다."""
+    if not google_api_key or not search_engine_id:
+        return "축제 정보 API 설정이 없어 실시간 이벤트 검색을 건너뛰었어요."
+
+    current_year = datetime.now().year
+    endpoint = "https://www.googleapis.com/customsearch/v1"
+    params = {
+        "key": google_api_key,
+        "cx": search_engine_id,
+        "q": f"{query} festival event {current_year}",
+        "num": 3,
+        "safe": "active",
+        "lr": "lang_ko",
+    }
+
+    try:
+        response = requests.get(endpoint, params=params, timeout=12)
+        response.raise_for_status()
+        items = response.json().get("items", [])
+        if not items:
+            return "검색 결과 기준, 근시일 내 확인 가능한 대표 축제 정보를 찾지 못했어요."
+
+        summaries = []
+        for item in items[:2]:
+            title = item.get("title", "이벤트")
+            snippet = item.get("snippet", "일정 정보는 링크에서 확인해 주세요.")
+            summaries.append(f"- **{title}**: {snippet}")
+
+        return "\n".join(summaries)
+    except requests.RequestException as exc:
+        return f"축제 정보를 가져오지 못했어요: {exc}"
+
+
 # 2. 사이드바 (유지)
 with st.sidebar:
     api_key = st.text_input("OpenAI API Key를 입력하세요", type="password")
+    st.markdown("---")
+    st.markdown("### 🌐 외부 정보 연동 (선택)")
+    google_api_key = st.text_input("Google API Key (Custom Search)", type="password")
+    google_cx = st.text_input("Custom Search Engine ID (CX)")
+    st.caption("대표 이미지 + 축제 정보를 실시간에 가깝게 보여주려면 입력해 주세요.")
+
     st.markdown("---")
     st.write("💡 **팁**")
     st.write("- **'일주일 이상'**을 선택해야 유럽/미주 등 장거리 추천이 나옵니다.")
@@ -24,11 +148,11 @@ col1, col2 = st.columns(2)
 with col1:
     # 기간 선택
     duration = st.selectbox("여행 기간", [
-        "1박 2일", "2박 3일", "3박 4일", 
+        "1박 2일", "2박 3일", "3박 4일",
         "4박 5일", "일주일 (6박 7일)", "일주일 이상 (장기/유럽/미주 가능)"
     ])
     companion = st.selectbox("동행 여부", ["혼자", "친구/연인", "가족", "반려동물"])
-    
+
     # 난이도
     difficulty = st.selectbox("여행 난이도", [
         "쉬움 (힐링: 직항, 한국인 많음, 편한 인프라)",
@@ -49,21 +173,23 @@ if st.button("🚀 여행지 3곳 추천받기"):
         with st.spinner("AI가 전 세계 지도를 펼쳐 놓고 고민 중입니다..."):
             try:
                 client = OpenAI(api_key=api_key)
-                
+
                 # 프롬프트 수정: 장거리 여행 시 대륙 제한 해제
                 prompt = f"""
                 당신은 전 세계를 여행한 베테랑 가이드입니다. 사용자 조건에 맞는 여행지 3곳을 추천하세요.
-                
+
                 [사용자 정보]
                 - 난이도: {difficulty}
                 - 기간: {duration}
                 - 스타일: {style}
                 - 예산: {budget_level}
-                
+                - 동행: {companion}
+                - 추가요청: {etc_req if etc_req else '없음'}
+
                 [🚨 거리 및 지역 추천 로직 (수정됨)]
                 1. **단거리 ('1박 2일' ~ '4박 5일'):**
                    - 물리적으로 먼 곳은 불가능합니다. **한국 국내, 일본, 중국, 대만, 홍콩, 마카오, 블라디보스톡** 등 비행시간 5시간 이내 지역만 추천하세요.
-                
+
                 2. **장거리 ('일주일' ~ '일주일 이상'):**
                    - **아시아에 국한되지 마세요! 전 세계로 눈을 돌리세요.**
                    - 예산이 '적당함' 이상이고 기간이 길다면 **유럽(서유럽/동유럽), 미주(미국/캐나다), 대양주(호주/뉴질랜드), 중동(튀르키예/두바이)** 등을 적극 추천하세요.
@@ -71,14 +197,14 @@ if st.button("🚀 여행지 3곳 추천받기"):
 
                 3. **난이도별 차별화:**
                    - **'쉬움'**: 파리, 런던, 로마, 시드니, 뉴욕, 싱가포르 등 유명하고 인프라 좋은 곳.
-                   - **'모험가'**: 
+                   - **'모험가'**:
                      - 아시아: 몽골, 라오스, 치앙마이, 사파 등.
                      - 유럽/기타: 포르투갈, 크로아티아, 아이슬란드, 튀르키예 카파도키아, 이집트 등 이색적인 곳.
                      - **(금지어 적용 유지)**: 다낭, 방콕, 오사카, 세부 등 너무 뻔한 곳은 '모험가'에게 추천 금지.
-                
+
                 4. **공통 제약:**
                    - 대한민국 외교부 여행 금지 국가 절대 제외.
-                
+
                 반드시 아래 JSON 포맷으로 답변하세요.
                 {{
                     "destinations": [
@@ -100,37 +226,52 @@ if st.button("🚀 여행지 3곳 추천받기"):
                 response = client.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[{"role": "user", "content": prompt}],
-                    response_format={ "type": "json_object" },
-                    temperature=1.1, 
+                    response_format={"type": "json_object"},
+                    temperature=1.1,
                 )
-                
+
                 result = json.loads(response.choices[0].message.content)
                 destinations = result['destinations']
 
                 st.success(f"'{duration}' 동안 다녀오기 좋은, 전 세계 여행지를 엄선했습니다! 🌍")
-                
+
                 tabs = st.tabs([d['name_kr'] for d in destinations])
-                
+
                 for i, tab in enumerate(tabs):
                     with tab:
                         dest = destinations[i]
                         st.header(f"📍 {dest['name_kr']}")
-                        
+
                         map_data = pd.DataFrame({'lat': [dest['latitude']], 'lon': [dest['longitude']]})
                         st.map(map_data, zoom=4)
-                        
+
+                        image_url, image_error = get_landmark_image(dest['name_kr'], google_api_key, google_cx)
+                        if image_url:
+                            st.image(image_url, caption=f"{dest['name_kr']} 대표 랜드마크", use_container_width=True)
+                        else:
+                            st.warning(image_error)
+
                         st.info(f"💡 **추천 이유**: {dest['reason']}")
-                        
+
+                        weather_summary = get_weather_summary(dest['latitude'], dest['longitude'])
+                        festival_summary = get_festival_summary(dest['name_kr'], google_api_key, google_cx)
+
+                        st.markdown("#### 🌤️ 현지 날씨 (실시간 예보)")
+                        st.write(weather_summary)
+
+                        st.markdown("#### 🎉 현지 축제/이벤트 (검색 기반)")
+                        st.markdown(festival_summary)
+
                         col_a, col_b = st.columns(2)
                         with col_a:
                             st.markdown("#### 🗓️ 추천 일정")
                             st.write(dest['itinerary'])
-                        
+
                         with col_b:
                             st.markdown("#### 💰 예상 예산")
                             st.success(f"**{dest['total_budget']}**")
                             st.caption(dest['budget_detail'])
-                        
+
                         st.markdown("---")
                         url = f"https://www.skyscanner.co.kr/transport/flights/sela/{dest['airport_code']}"
                         st.link_button(f"✈️ {dest['name_kr']} 항공권 검색", url)
