@@ -36,54 +36,63 @@ def get_landmark_image(query: str):
         return None, f"대표 이미지 조회 실패: {exc}"
 
 
-def get_weather_summary(latitude: float, longitude: float):
-    """Open-Meteo로 향후 7일 날씨 요약을 반환합니다."""
-    endpoint = "https://api.open-meteo.com/v1/forecast"
-    params = {
-        "latitude": latitude,
-        "longitude": longitude,
-        "daily": "weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max",
-        "timezone": "auto",
-        "forecast_days": 7,
-    }
+def get_best_travel_season(latitude: float):
+    """위도 기반으로 여행하기 좋은 시기를 추천합니다."""
+    abs_lat = abs(latitude)
 
-    weather_code_map = {
-        0: "맑음",
-        1: "대체로 맑음",
-        2: "부분적으로 흐림",
-        3: "흐림",
-        45: "안개",
-        48: "서리 안개",
-        51: "약한 이슬비",
-        61: "약한 비",
-        63: "비",
-        65: "강한 비",
-        71: "약한 눈",
-        73: "눈",
-        80: "소나기",
-        95: "뇌우",
+    if abs_lat < 15:
+        return "연중 여행 가능 (우기/건기 확인 권장)"
+
+    if latitude >= 0:
+        return "4~6월, 9~10월 (기온이 온화하고 이동이 편한 시기)"
+
+    return "10~12월, 3~4월 (남반구 기준 쾌적한 계절)"
+
+
+def get_weather_summary(latitude: float, longitude: float, weather_api_key: str):
+    """OpenWeather API로 현재 날씨 + 단기 예보를 요약합니다."""
+    if not weather_api_key:
+        return "OpenWeather API Key를 입력하면 현재 날씨를 볼 수 있어요."
+
+    current_endpoint = "https://api.openweathermap.org/data/2.5/weather"
+    forecast_endpoint = "https://api.openweathermap.org/data/2.5/forecast"
+    base_params = {
+        "lat": latitude,
+        "lon": longitude,
+        "appid": weather_api_key,
+        "units": "metric",
+        "lang": "kr",
     }
 
     try:
-        response = requests.get(endpoint, params=params, timeout=12)
-        response.raise_for_status()
-        data = response.json().get("daily", {})
-        if not data:
-            return "날씨 데이터를 불러오지 못했어요."
+        current_res = requests.get(current_endpoint, params=base_params, timeout=12)
+        current_res.raise_for_status()
+        current_data = current_res.json()
 
-        today_idx = 0
-        max_temp = data["temperature_2m_max"][today_idx]
-        min_temp = data["temperature_2m_min"][today_idx]
-        rain_prob = data["precipitation_probability_max"][today_idx]
-        weather_code = data["weathercode"][today_idx]
+        forecast_res = requests.get(forecast_endpoint, params=base_params, timeout=12)
+        forecast_res.raise_for_status()
+        forecast_data = forecast_res.json().get("list", [])
 
-        weather_text = weather_code_map.get(weather_code, "변동성 있는 날씨")
-        rainy_days = sum(1 for p in data["precipitation_probability_max"] if p and p >= 60)
+        current_weather = current_data.get("weather", [{}])[0].get("description", "날씨 정보 없음")
+        current_temp = current_data.get("main", {}).get("temp")
+        feels_like = current_data.get("main", {}).get("feels_like")
+
+        rainy_slots = 0
+        for slot in forecast_data[:16]:  # 약 2일치(3시간 간격)
+            rain_probability = slot.get("pop", 0)
+            if rain_probability >= 0.6:
+                rainy_slots += 1
+
+        season_tip = get_best_travel_season(latitude)
 
         return (
-            f"오늘 기준 {weather_text}, {min_temp:.0f}~{max_temp:.0f}°C 예상. "
-            f"향후 7일 중 비 가능성 높은 날은 {rainy_days}일입니다."
+            f"현재 날씨는 **{current_weather}**, 기온은 **{current_temp:.1f}°C** "
+            f"(체감 **{feels_like:.1f}°C**) 입니다. "
+            f"향후 48시간 기준 비 가능성이 높은 시간대는 약 {rainy_slots}회예요.\n\n"
+            f"✈️ **여행 추천 시기**: {season_tip}"
         )
+    except requests.HTTPError as exc:
+        return f"OpenWeather 요청이 실패했어요. API Key를 확인해 주세요: {exc}"
     except requests.RequestException as exc:
         return f"날씨 정보를 가져오지 못했어요: {exc}"
 
@@ -120,9 +129,10 @@ def get_festival_summary(query: str):
 # 2. 사이드바 (유지)
 with st.sidebar:
     api_key = st.text_input("OpenAI API Key를 입력하세요", type="password")
+    weather_api_key = st.text_input("OpenWeather API Key를 입력하세요", type="password")
     st.markdown("---")
     st.markdown("### 🌐 외부 정보 연동")
-    st.caption("대표 이미지 + 축제 정보를 DuckDuckGo Search 기반으로 가져옵니다.")
+    st.caption("대표 이미지/축제는 DuckDuckGo, 날씨는 OpenWeather API를 사용합니다.")
 
     st.markdown("---")
     st.write("💡 **팁**")
@@ -241,7 +251,7 @@ if st.button("🚀 여행지 3곳 추천받기"):
 
                         st.info(f"💡 **추천 이유**: {dest['reason']}")
 
-                        weather_summary = get_weather_summary(dest['latitude'], dest['longitude'])
+                        weather_summary = get_weather_summary(dest['latitude'], dest['longitude'], weather_api_key)
                         festival_summary = get_festival_summary(dest['name_kr'])
 
                         st.markdown("#### 🌤️ 현지 날씨 (실시간 예보)")
