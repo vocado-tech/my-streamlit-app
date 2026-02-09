@@ -4,6 +4,7 @@ import json
 import pandas as pd
 import requests
 from datetime import datetime
+from duckduckgo_search import DDGS
 
 
 # 1. 페이지 설정 (유지)
@@ -13,31 +14,25 @@ st.title("✈️ NoRegret Trip")
 st.subheader("여행 가자 ^~^")
 
 
-def get_landmark_image(query: str, google_api_key: str, search_engine_id: str):
-    """Google Custom Search API로 여행지 대표 이미지를 가져옵니다."""
-    if not google_api_key or not search_engine_id:
-        return None, "Google Custom Search API Key/CX가 없어서 대표 사진을 불러오지 못했어요."
-
-    endpoint = "https://www.googleapis.com/customsearch/v1"
-    params = {
-        "key": google_api_key,
-        "cx": search_engine_id,
-        "q": f"{query} landmark",
-        "searchType": "image",
-        "num": 1,
-        "safe": "active",
-        "imgType": "photo",
-        "imgSize": "xlarge",
-    }
-
+def get_landmark_image(query: str):
+    """DuckDuckGo 이미지 검색으로 여행지 대표 이미지를 가져옵니다."""
     try:
-        response = requests.get(endpoint, params=params, timeout=12)
-        response.raise_for_status()
-        items = response.json().get("items", [])
-        if not items:
+        with DDGS() as ddgs:
+            results = list(
+                ddgs.images(
+                    keywords=f"{query} landmark",
+                    region="kr-kr",
+                    safesearch="moderate",
+                    size="Large",
+                    max_results=1,
+                )
+            )
+
+        if not results:
             return None, "대표 이미지를 찾지 못했어요."
-        return items[0].get("link"), None
-    except requests.RequestException as exc:
+
+        return results[0].get("image"), None
+    except Exception as exc:
         return None, f"대표 이미지 조회 실패: {exc}"
 
 
@@ -93,37 +88,32 @@ def get_weather_summary(latitude: float, longitude: float):
         return f"날씨 정보를 가져오지 못했어요: {exc}"
 
 
-def get_festival_summary(query: str, google_api_key: str, search_engine_id: str):
-    """Google Custom Search API로 축제/이벤트 정보 요약을 반환합니다."""
-    if not google_api_key or not search_engine_id:
-        return "축제 정보 API 설정이 없어 실시간 이벤트 검색을 건너뛰었어요."
-
+def get_festival_summary(query: str):
+    """DuckDuckGo 텍스트 검색으로 축제/이벤트 정보 요약을 반환합니다."""
     current_year = datetime.now().year
-    endpoint = "https://www.googleapis.com/customsearch/v1"
-    params = {
-        "key": google_api_key,
-        "cx": search_engine_id,
-        "q": f"{query} festival event {current_year}",
-        "num": 3,
-        "safe": "active",
-        "lr": "lang_ko",
-    }
 
     try:
-        response = requests.get(endpoint, params=params, timeout=12)
-        response.raise_for_status()
-        items = response.json().get("items", [])
+        with DDGS() as ddgs:
+            items = list(
+                ddgs.text(
+                    keywords=f"{query} festival event {current_year}",
+                    region="kr-kr",
+                    safesearch="moderate",
+                    max_results=3,
+                )
+            )
+
         if not items:
             return "검색 결과 기준, 근시일 내 확인 가능한 대표 축제 정보를 찾지 못했어요."
 
         summaries = []
         for item in items[:2]:
             title = item.get("title", "이벤트")
-            snippet = item.get("snippet", "일정 정보는 링크에서 확인해 주세요.")
+            snippet = item.get("body", "일정 정보는 링크에서 확인해 주세요.")
             summaries.append(f"- **{title}**: {snippet}")
 
         return "\n".join(summaries)
-    except requests.RequestException as exc:
+    except Exception as exc:
         return f"축제 정보를 가져오지 못했어요: {exc}"
 
 
@@ -131,10 +121,8 @@ def get_festival_summary(query: str, google_api_key: str, search_engine_id: str)
 with st.sidebar:
     api_key = st.text_input("OpenAI API Key를 입력하세요", type="password")
     st.markdown("---")
-    st.markdown("### 🌐 외부 정보 연동 (선택)")
-    google_api_key = st.text_input("Google API Key (Custom Search)", type="password")
-    google_cx = st.text_input("Custom Search Engine ID (CX)")
-    st.caption("대표 이미지 + 축제 정보를 실시간에 가깝게 보여주려면 입력해 주세요.")
+    st.markdown("### 🌐 외부 정보 연동")
+    st.caption("대표 이미지 + 축제 정보를 DuckDuckGo Search 기반으로 가져옵니다.")
 
     st.markdown("---")
     st.write("💡 **팁**")
@@ -245,7 +233,7 @@ if st.button("🚀 여행지 3곳 추천받기"):
                         map_data = pd.DataFrame({'lat': [dest['latitude']], 'lon': [dest['longitude']]})
                         st.map(map_data, zoom=4)
 
-                        image_url, image_error = get_landmark_image(dest['name_kr'], google_api_key, google_cx)
+                        image_url, image_error = get_landmark_image(dest['name_kr'])
                         if image_url:
                             st.image(image_url, caption=f"{dest['name_kr']} 대표 랜드마크", use_container_width=True)
                         else:
@@ -254,7 +242,7 @@ if st.button("🚀 여행지 3곳 추천받기"):
                         st.info(f"💡 **추천 이유**: {dest['reason']}")
 
                         weather_summary = get_weather_summary(dest['latitude'], dest['longitude'])
-                        festival_summary = get_festival_summary(dest['name_kr'], google_api_key, google_cx)
+                        festival_summary = get_festival_summary(dest['name_kr'])
 
                         st.markdown("#### 🌤️ 현지 날씨 (실시간 예보)")
                         st.write(weather_summary)
