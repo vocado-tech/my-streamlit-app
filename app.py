@@ -6,6 +6,7 @@ import pandas as pd
 import requests
 import re
 from datetime import datetime
+from urllib.parse import quote_plus
 from duckduckgo_search import DDGS
 
 
@@ -704,19 +705,22 @@ def extract_country_from_destination(name_kr: str):
 
 def _summarize_entry_requirement_from_search(country: str):
     """검색 결과 스니펫을 바탕으로 비자/입국 요건을 요약합니다."""
+    search_query = f"{country} 대한민국 여권 비자 체류 기간 ETA ESTA 여권 유효기간"
+    search_results_url = f"https://duckduckgo.com/?q={quote_plus(search_query)}"
+
     fallback = {
         "visa": "검색 결과 기준 최신 정책 확인 필요",
         "stay": "검색 결과에서 체류기간 확인 필요",
         "eta": "검색 결과에서 ETA/ESTA 여부 확인 필요",
         "passport": "대부분 국가에서 6개월 이상 유효기간 권장",
-        "source": "",
+        "source": search_results_url,
     }
 
     try:
         with DDGS() as ddgs:
             items = list(
                 ddgs.text(
-                    keywords=f"{country} 대한민국 여권 비자 체류 기간 ETA ESTA 여권 유효기간",
+                    keywords=search_query,
                     region="kr-kr",
                     safesearch="moderate",
                     max_results=5,
@@ -757,15 +761,12 @@ def _summarize_entry_requirement_from_search(country: str):
         elif "150일" in text_blob:
             passport = "입국일 기준 150일 이상 필요 가능성 있음"
 
-        first = items[0]
-        source = first.get("href") or first.get("url") or ""
-
         return {
             "visa": visa,
             "stay": stay,
             "eta": eta,
             "passport": passport,
-            "source": source,
+            "source": search_results_url,
         }
     except Exception:
         return fallback
