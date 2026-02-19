@@ -189,6 +189,70 @@ REPRESENTATIVE_FOOD_BY_DESTINATION = {
 }
 
 
+ZONE_CLIMATE_STATS = {
+    "열대몬순": {
+        "temp": [27, 28, 29, 30, 30, 29, 29, 29, 29, 29, 28, 27],
+        "rain": [20, 30, 50, 90, 220, 180, 170, 190, 300, 240, 80, 30],
+        "rainy_season": [5, 6, 7, 8, 9, 10],
+        "typhoon_season": [],
+        "notes": "스콜성 소나기가 잦아 우산/방수 신발이 유용합니다.",
+    },
+    "동아시아해양": {
+        "temp": [6, 7, 11, 16, 21, 24, 28, 29, 25, 20, 14, 8],
+        "rain": [55, 60, 95, 120, 135, 180, 210, 190, 170, 120, 85, 55],
+        "rainy_season": [6, 7],
+        "typhoon_season": [8, 9, 10],
+        "notes": "장마/태풍 시기엔 항공·페리 지연 가능성을 감안해야 합니다.",
+    },
+    "지중해": {
+        "temp": [8, 9, 12, 16, 20, 25, 29, 29, 25, 20, 14, 10],
+        "rain": [80, 70, 60, 55, 40, 20, 8, 15, 40, 85, 95, 90],
+        "rainy_season": [11, 12, 1, 2],
+        "typhoon_season": [],
+        "notes": "여름철은 덥고 건조해 한낮 야외활동 난도가 높습니다.",
+    },
+    "온대대륙": {
+        "temp": [-1, 1, 6, 12, 18, 22, 25, 24, 19, 13, 6, 1],
+        "rain": [45, 40, 45, 55, 70, 75, 70, 65, 55, 50, 50, 45],
+        "rainy_season": [6, 7, 8],
+        "typhoon_season": [],
+        "notes": "겨울엔 결빙/한파, 여름엔 소나기 가능성을 고려하세요.",
+    },
+    "사막": {
+        "temp": [19, 21, 25, 30, 34, 36, 39, 39, 35, 31, 26, 21],
+        "rain": [15, 20, 15, 8, 3, 1, 1, 1, 1, 2, 6, 12],
+        "rainy_season": [],
+        "typhoon_season": [],
+        "notes": "한낮 폭염과 큰 일교차를 감수해야 하며 수분 보충이 중요합니다.",
+    },
+}
+
+
+COUNTRY_CLIMATE_ZONE = {
+    "태국": "열대몬순",
+    "베트남": "열대몬순",
+    "싱가포르": "열대몬순",
+    "말레이시아": "열대몬순",
+    "대만": "동아시아해양",
+    "일본": "동아시아해양",
+    "홍콩": "동아시아해양",
+    "중국": "온대대륙",
+    "미국": "온대대륙",
+    "캐나다": "온대대륙",
+    "영국": "온대대륙",
+    "프랑스": "지중해",
+    "이탈리아": "지중해",
+    "스페인": "지중해",
+    "포르투갈": "지중해",
+    "독일": "온대대륙",
+    "네덜란드": "온대대륙",
+    "튀르키예": "지중해",
+    "아랍에미리트": "사막",
+    "호주": "온대대륙",
+    "뉴질랜드": "온대대륙",
+}
+
+
 # 1. 페이지 설정 (유지)
 st.set_page_config(page_title="NoRegret Trip", page_icon="✈️", layout="wide")
 
@@ -344,6 +408,80 @@ def get_best_travel_season(latitude: float):
         return "4~6월, 9~10월 (기온이 온화하고 이동이 편한 시기)"
 
     return "10~12월, 3~4월 (남반구 기준 쾌적한 계절)"
+
+
+def _get_trip_months(travel_dates):
+    """선택된 여행 날짜 범위에서 포함된 월 목록을 계산합니다."""
+    if not travel_dates:
+        return [datetime.now().month]
+
+    if isinstance(travel_dates, (list, tuple)) and len(travel_dates) == 2:
+        start_date, end_date = travel_dates
+        if start_date > end_date:
+            start_date, end_date = end_date, start_date
+    else:
+        start_date = end_date = travel_dates
+
+    months = []
+    cursor = datetime(start_date.year, start_date.month, 1)
+    end_cursor = datetime(end_date.year, end_date.month, 1)
+
+    while cursor <= end_cursor:
+        months.append(cursor.month)
+        if cursor.month == 12:
+            cursor = datetime(cursor.year + 1, 1, 1)
+        else:
+            cursor = datetime(cursor.year, cursor.month + 1, 1)
+
+    return months or [datetime.now().month]
+
+
+def get_seasonal_travel_note(destination_name: str, latitude: float, travel_dates):
+    """여행 기간 평균 기후와 우기/태풍 시즌 경고를 반환합니다."""
+    country = extract_country_from_destination(destination_name)
+    zone = COUNTRY_CLIMATE_ZONE.get(country)
+
+    if not zone:
+        zone = "온대대륙" if abs(latitude) >= 20 else "열대몬순"
+
+    climate = ZONE_CLIMATE_STATS[zone]
+    months = _get_trip_months(travel_dates)
+    month_indexes = [month - 1 for month in months]
+
+    avg_temp = sum(climate["temp"][idx] for idx in month_indexes) / len(month_indexes)
+    avg_rain = sum(climate["rain"][idx] for idx in month_indexes) / len(month_indexes)
+
+    rainy_overlap = [m for m in months if m in climate["rainy_season"]]
+    typhoon_overlap = [m for m in months if m in climate["typhoon_season"]]
+
+    cautions = []
+    if rainy_overlap:
+        cautions.append(
+            f"⚠️ {', '.join(map(str, rainy_overlap))}월은 우기/강수 집중 구간입니다. {climate['notes']}"
+        )
+    if typhoon_overlap:
+        cautions.append(
+            f"⚠️ {', '.join(map(str, typhoon_overlap))}월은 태풍 영향 가능성이 있습니다. 일정 변동 가능성을 꼭 감안하세요."
+        )
+
+    if not cautions:
+        cautions.append("✅ 선택한 기간은 계절 리스크가 비교적 낮은 편입니다.")
+
+    tradeoff = "지금 가면 이런 점은 감수해야 합니다: "
+    if avg_rain >= 150:
+        tradeoff += "실외 일정 중 갑작스러운 비로 동선이 자주 끊길 수 있어요."
+    elif avg_temp >= 32:
+        tradeoff += "낮 시간대 야외 활동 피로도가 높아질 수 있어요."
+    elif avg_temp <= 3:
+        tradeoff += "일몰 후 체감온도가 낮아 방한 준비가 필수예요."
+    else:
+        tradeoff += "관광 밀집 시간대와 일교차를 고려해 일정에 여유를 두는 것이 좋아요."
+
+    return (
+        f"여행 기간 평균 기온은 **약 {avg_temp:.1f}°C**, 평균 강수량은 **약 {avg_rain:.0f}mm/월**입니다.\n"
+        + "\n".join(cautions)
+        + f"\n\n💬 {tradeoff}"
+    )
 
 
 def get_weather_summary(latitude: float, longitude: float, weather_api_key: str):
@@ -643,6 +781,12 @@ with col2:
     budget_level = st.selectbox("예산 수준", ["가성비 (아끼기)", "적당함 (평균)", "럭셔리 (플렉스)"])
     no_drive = st.checkbox("운전 못해요ㅠㅠ (렌트카 없이 다니고 싶어요)")
 
+travel_dates = st.date_input(
+    "여행 날짜 (선택)",
+    value=(datetime.now().date(), datetime.now().date()),
+    help="여행 기간을 선택하면 해당 시기의 평균 기온/강수량과 우기·태풍 경고를 함께 안내해요.",
+)
+
 etc_req = st.text_input("특별 요청 (예: 사막이 보고 싶어요, 미술관 투어 원함)")
 
 # 4. 추천 버튼
@@ -763,10 +907,13 @@ if st.button("🚀 여행지 3곳 추천받기"):
                         st.info(f"💡 **추천 이유**: {dest['reason']}")
 
                         weather_summary = get_weather_summary(dest['latitude'], dest['longitude'], weather_api_key)
+                        seasonal_note = get_seasonal_travel_note(dest['name_kr'], dest['latitude'], travel_dates)
                         festival_summary = get_festival_summary(dest['name_kr'])
 
-                        st.markdown("#### 🌤️ 현지 날씨 (실시간 예보)")
+                        st.markdown("#### 🌤️ 현지 날씨 (실시간 예보 + 계절 리스크)")
                         st.write(weather_summary)
+                        st.markdown("#### 🌦️ 여행 기간 기후/시기 적합성")
+                        st.markdown(seasonal_note)
 
                         st.markdown("#### 🎉 현지 축제/이벤트 (검색 기반)")
                         st.markdown(festival_summary)
