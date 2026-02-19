@@ -704,7 +704,7 @@ def extract_country_from_destination(name_kr: str):
 
 
 def get_regret_risk_warnings(style: str, destination_name: str, reason_text: str):
-    """여행 스타일과 목적지 성향이 어긋날 때 후회 가능성 경고를 반환합니다."""
+    """여행 스타일 미스매치 + 목적지의 보편적 리스크를 후회 가능성 경고로 반환합니다."""
     text = f"{destination_name} {reason_text}".lower()
     destination_traits = {
         "쇼핑/도시": ["쇼핑", "야경", "도시", "몰", "백화점", "city", "nightlife"],
@@ -735,6 +735,21 @@ def get_regret_risk_warnings(style: str, destination_name: str, reason_text: str
         },
     }
 
+    generic_risk_rules = [
+        {
+            "keywords": ["스위스", "아이슬란드", "두바이", "런던", "뉴욕", "파리", "싱가포르"],
+            "message": "⚠️ 현지 물가가 높은 편이라 식비·교통비·입장료가 예상보다 커질 수 있어요.",
+        },
+        {
+            "keywords": ["런던", "파리", "암스테르담", "아이슬란드", "영국"],
+            "message": "⚠️ 비·강풍 등 변덕스러운 날씨로 실외 일정이 자주 바뀔 수 있어요.",
+        },
+        {
+            "keywords": ["로마", "바르셀로나", "파리", "방콕"],
+            "message": "⚠️ 관광객이 많은 지역은 소매치기·잡상인 이슈가 있어 동선별 주의가 필요해요.",
+        },
+    ]
+
     detected_traits = {
         trait
         for trait, keywords in destination_traits.items()
@@ -746,6 +761,12 @@ def get_regret_risk_warnings(style: str, destination_name: str, reason_text: str
         warning = mismatch_messages.get(style, {}).get(trait)
         if warning and warning not in warnings:
             warnings.append(warning)
+
+    for rule in generic_risk_rules:
+        if any(keyword.lower() in text for keyword in rule["keywords"]):
+            if rule["message"] not in warnings:
+                warnings.append(rule["message"])
+
     return warnings
 
 
