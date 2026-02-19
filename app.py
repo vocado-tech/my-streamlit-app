@@ -1038,17 +1038,30 @@ if st.button("🚀 여행지 3곳 추천받기"):
                         st.map(map_data, zoom=4)
 
                         image_url, image_error = get_landmark_image(dest['name_kr'])
-                        if image_url:
-                            st.image(image_url, caption=f"{dest['name_kr']} 대표 랜드마크", use_container_width=True)
-                        else:
-                            st.warning(image_error)
-
-                        st.markdown("#### 🐷 대표 먹거리")
                         food_name, food_image_url, food_image_error = get_representative_food(dest['name_kr'])
-                        if food_image_url:
-                            st.image(food_image_url, use_container_width=True)
-                        else:
-                            st.caption(food_image_error)
+
+                        st.markdown("#### 🖼️ 여행지/먹거리 미리보기")
+                        image_col, food_col = st.columns(2)
+
+                        with image_col:
+                            if image_url:
+                                st.image(
+                                    image_url,
+                                    caption=f"{dest['name_kr']} 대표 랜드마크",
+                                    width=220,
+                                )
+                            else:
+                                st.caption(image_error)
+
+                        with food_col:
+                            if food_image_url:
+                                st.image(
+                                    food_image_url,
+                                    caption=f"대표 먹거리: {food_name}",
+                                    width=220,
+                                )
+                            else:
+                                st.caption(food_image_error)
 
                         st.info(f"💡 **추천 이유**: {dest['reason']}")
 
