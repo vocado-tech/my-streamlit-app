@@ -703,6 +703,52 @@ def extract_country_from_destination(name_kr: str):
     return name_kr.strip()
 
 
+def get_regret_risk_warnings(style: str, destination_name: str, reason_text: str):
+    """여행 스타일과 목적지 성향이 어긋날 때 후회 가능성 경고를 반환합니다."""
+    text = f"{destination_name} {reason_text}".lower()
+    destination_traits = {
+        "쇼핑/도시": ["쇼핑", "야경", "도시", "몰", "백화점", "city", "nightlife"],
+        "휴양/바다": ["휴양", "리조트", "해변", "바다", "비치", "beach"],
+        "관광/유적": ["관광", "유적", "박물관", "역사", "궁전", "성당", "heritage"],
+        "대자연/트레킹": ["대자연", "트레킹", "하이킹", "산", "국립공원", "빙하", "safari"],
+        "미식/로컬푸드": ["미식", "로컬푸드", "야시장", "맛집", "레스토랑", "gourmet"],
+    }
+    mismatch_messages = {
+        "휴양/바다 (물놀이)": {
+            "쇼핑/도시": "⚠️ 이 도시는 쇼핑/야경 중심이라 물놀이·휴양 비중이 기대보다 낮을 수 있어요.",
+            "관광/유적": "⚠️ 이 여행지는 역사·도보 관광 비중이 있어 완전 휴양형 여행과는 결이 다를 수 있어요.",
+        },
+        "관광/유적 (많이 걷기)": {
+            "쇼핑/도시": "⚠️ 이 도시는 쇼핑/야경 중심이라 관광지를 많이 보는 스타일과는 맞지 않을 수 있습니다.",
+            "휴양/바다": "⚠️ 휴양 중심 동선이면 유적·역사 탐방 밀도가 낮아 아쉬울 수 있어요.",
+        },
+        "쇼핑/도시": {
+            "대자연/트레킹": "⚠️ 이 목적지는 자연/트레킹 중심이라 쇼핑 인프라가 제한적일 수 있어요.",
+            "휴양/바다": "⚠️ 휴양지 특성상 대형 쇼핑 스폿이 적어 도시형 쇼핑 여행과 결이 다를 수 있어요.",
+        },
+        "대자연/트레킹": {
+            "쇼핑/도시": "⚠️ 도시/쇼핑 비중이 높아 대자연 체험 시간을 충분히 확보하기 어려울 수 있어요.",
+            "휴양/바다": "⚠️ 해변 휴양 중심 일정이면 트레킹 강도가 기대보다 약할 수 있어요.",
+        },
+        "미식/로컬푸드": {
+            "대자연/트레킹": "⚠️ 자연/트레킹 위주 여행지는 식도락 선택지가 제한될 수 있어요.",
+        },
+    }
+
+    detected_traits = {
+        trait
+        for trait, keywords in destination_traits.items()
+        if any(keyword in text for keyword in keywords)
+    }
+
+    warnings = []
+    for trait in detected_traits:
+        warning = mismatch_messages.get(style, {}).get(trait)
+        if warning and warning not in warnings:
+            warnings.append(warning)
+    return warnings
+
+
 def _summarize_entry_requirement_from_search(country: str):
     """검색 결과 스니펫을 바탕으로 비자/입국 요건을 요약합니다."""
     search_query = f"{country} 대한민국 여권 비자 체류 기간 ETA ESTA 여권 유효기간"
@@ -984,6 +1030,14 @@ if st.button("🚀 여행지 3곳 추천받기"):
                             st.caption(food_image_error)
 
                         st.info(f"💡 **추천 이유**: {dest['reason']}")
+
+                        st.markdown("#### 🧠 NoRegret 체크: 후회 가능성 예측")
+                        regret_risk_warnings = get_regret_risk_warnings(style, dest['name_kr'], dest['reason'])
+                        if regret_risk_warnings:
+                            for warning_message in regret_risk_warnings:
+                                st.warning(warning_message)
+                        else:
+                            st.success("✅ 현재 선택한 여행 스타일과 잘 맞는 목적지예요.")
 
                         weather_summary = get_weather_summary(dest['latitude'], dest['longitude'], weather_api_key)
                         seasonal_note = get_seasonal_travel_note(dest['name_kr'], dest['latitude'], travel_dates)
