@@ -230,33 +230,18 @@ def _get_wikipedia_image(query: str):
     return None
 
 
-def _get_google_image(query: str):
-    """Google 이미지 검색 결과에서 대표 이미지를 조회합니다."""
-    endpoint = "https://www.google.com/search"
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/125.0.0.0 Safari/537.36"
-        )
-    }
+def _get_unsplash_image(query: str):
+    """Unsplash Source URL을 이용해 검색어 기반 이미지를 반환합니다."""
+    keywords = _extract_destination_keywords(query)
 
-    for keyword in _extract_destination_keywords(query):
+    for keyword in keywords:
         try:
-            response = requests.get(
-                endpoint,
-                params={"q": keyword, "tbm": "isch", "hl": "ko"},
-                headers=headers,
-                timeout=10,
-            )
+            encoded_query = requests.utils.quote(keyword)
+            candidate_url = f"https://source.unsplash.com/1600x900/?{encoded_query}"
+            response = requests.get(candidate_url, timeout=8, allow_redirects=True)
             response.raise_for_status()
-
-            matches = re.findall(
-                r'https://encrypted-tbn0\.gstatic\.com/images\?[^"\'\s<>]+',
-                response.text,
-            )
-            if matches:
-                return matches[0]
+            if "images.unsplash.com" in response.url:
+                return response.url
         except requests.RequestException:
             continue
 
@@ -264,10 +249,10 @@ def _get_google_image(query: str):
 
 
 def get_landmark_image(query: str):
-    """Google 이미지 검색 + DuckDuckGo + Wikipedia 순으로 대표 이미지를 가져옵니다."""
-    google_image = _get_google_image(f"{query} landmark")
-    if google_image:
-        return google_image, None
+    """Unsplash + DuckDuckGo + Wikipedia 순으로 대표 이미지를 가져옵니다."""
+    unsplash_image = _get_unsplash_image(f"{query} landmark")
+    if unsplash_image:
+        return unsplash_image, None
 
     try:
         with DDGS() as ddgs:
@@ -299,7 +284,7 @@ def get_landmark_image(query: str):
         wiki_image = _get_wikipedia_image(query)
         if wiki_image:
             return wiki_image, None
-        return None, "대표 이미지 서비스 접근이 제한되어 이미지를 불러오지 못했어요."
+        return None, "Unsplash 또는 보조 이미지 서비스 접근이 제한되어 이미지를 불러오지 못했어요."
 
 
 def get_representative_food(query: str):
@@ -320,9 +305,9 @@ def get_representative_food(query: str):
 
     image_query = food_name if food_name != "현지 대표 요리" else f"{keywords[0]} 대표 음식"
 
-    google_image = _get_google_image(image_query)
-    if google_image:
-        return food_name, google_image, None
+    unsplash_image = _get_unsplash_image(image_query)
+    if unsplash_image:
+        return food_name, unsplash_image, None
 
     try:
         with DDGS() as ddgs:
