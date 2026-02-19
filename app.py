@@ -4,8 +4,169 @@ from openai import OpenAI
 import json
 import pandas as pd
 import requests
+import re
 from datetime import datetime
 from duckduckgo_search import DDGS
+
+
+ENTRY_REQUIREMENTS_BY_COUNTRY = {
+    "일본": {
+        "visa": "90일 이하 무비자",
+        "stay": "최대 90일 체류 가능",
+        "eta": "별도 ESTA/ETA 불필요",
+        "passport": "입국 시 유효한 전자여권 필요 (통상 6개월 이상 권장)",
+    },
+    "중국": {
+        "visa": "일반적으로 비자 필요 (경유/특정 정책 예외 가능)",
+        "stay": "비자 종류에 따라 상이",
+        "eta": "ESTA/ETA 불필요",
+        "passport": "일반적으로 6개월 이상 유효기간 필요",
+    },
+    "대만": {
+        "visa": "90일 이하 무비자",
+        "stay": "최대 90일",
+        "eta": "ESTA/ETA 불필요",
+        "passport": "입국 시 6개월 이상 권장",
+    },
+    "홍콩": {
+        "visa": "90일 이하 무비자",
+        "stay": "최대 90일",
+        "eta": "ESTA/ETA 불필요",
+        "passport": "입국 시 1개월+ 체류기간을 초과하는 유효기간 권장",
+    },
+    "베트남": {
+        "visa": "45일 이하 무비자",
+        "stay": "최대 45일",
+        "eta": "ESTA/ETA 불필요",
+        "passport": "일반적으로 6개월 이상 유효기간 필요",
+    },
+    "태국": {
+        "visa": "무비자 입국 가능",
+        "stay": "정책에 따라 60일 내외 (변동 가능)",
+        "eta": "ESTA/ETA 불필요",
+        "passport": "일반적으로 6개월 이상 유효기간 필요",
+    },
+    "싱가포르": {
+        "visa": "90일 이하 무비자",
+        "stay": "최대 90일",
+        "eta": "전자입국신고(SG Arrival Card) 필요",
+        "passport": "입국 시 6개월 이상 유효기간 필요",
+    },
+    "말레이시아": {
+        "visa": "90일 이하 무비자",
+        "stay": "최대 90일",
+        "eta": "전자입국신고(MDAC) 필요",
+        "passport": "입국 시 6개월 이상 유효기간 필요",
+    },
+    "미국": {
+        "visa": "관광 목적 90일 이하는 ESTA 승인 시 무비자",
+        "stay": "최대 90일 (ESTA 기준)",
+        "eta": "ESTA 필수",
+        "passport": "전자여권 필요 (체류기간 동안 유효)",
+    },
+    "캐나다": {
+        "visa": "단기 체류 시 비자 면제",
+        "stay": "통상 최대 6개월",
+        "eta": "eTA 필수 (항공 입국 시)",
+        "passport": "입국 시 유효한 여권 필요",
+    },
+    "영국": {
+        "visa": "단기 방문 무비자",
+        "stay": "최대 6개월",
+        "eta": "ETA 필요",
+        "passport": "체류기간 동안 유효한 여권 필요",
+    },
+    "프랑스": {
+        "visa": "쉥겐 90일 이하 무비자",
+        "stay": "180일 중 최대 90일",
+        "eta": "ESTA/ETA 불필요 (ETIAS 시행 시 변경 가능)",
+        "passport": "출국예정일 기준 3개월 이상 + 발급 후 10년 이내",
+    },
+    "독일": {
+        "visa": "쉥겐 90일 이하 무비자",
+        "stay": "180일 중 최대 90일",
+        "eta": "ESTA/ETA 불필요 (ETIAS 시행 시 변경 가능)",
+        "passport": "출국예정일 기준 3개월 이상 + 발급 후 10년 이내",
+    },
+    "이탈리아": {
+        "visa": "쉥겐 90일 이하 무비자",
+        "stay": "180일 중 최대 90일",
+        "eta": "ESTA/ETA 불필요 (ETIAS 시행 시 변경 가능)",
+        "passport": "출국예정일 기준 3개월 이상 + 발급 후 10년 이내",
+    },
+    "스페인": {
+        "visa": "쉥겐 90일 이하 무비자",
+        "stay": "180일 중 최대 90일",
+        "eta": "ESTA/ETA 불필요 (ETIAS 시행 시 변경 가능)",
+        "passport": "출국예정일 기준 3개월 이상 + 발급 후 10년 이내",
+    },
+    "포르투갈": {
+        "visa": "쉥겐 90일 이하 무비자",
+        "stay": "180일 중 최대 90일",
+        "eta": "ESTA/ETA 불필요 (ETIAS 시행 시 변경 가능)",
+        "passport": "출국예정일 기준 3개월 이상 + 발급 후 10년 이내",
+    },
+    "네덜란드": {
+        "visa": "쉥겐 90일 이하 무비자",
+        "stay": "180일 중 최대 90일",
+        "eta": "ESTA/ETA 불필요 (ETIAS 시행 시 변경 가능)",
+        "passport": "출국예정일 기준 3개월 이상 + 발급 후 10년 이내",
+    },
+    "크로아티아": {
+        "visa": "쉥겐 90일 이하 무비자",
+        "stay": "180일 중 최대 90일",
+        "eta": "ESTA/ETA 불필요 (ETIAS 시행 시 변경 가능)",
+        "passport": "출국예정일 기준 3개월 이상 + 발급 후 10년 이내",
+    },
+    "아이슬란드": {
+        "visa": "쉥겐 90일 이하 무비자",
+        "stay": "180일 중 최대 90일",
+        "eta": "ESTA/ETA 불필요 (ETIAS 시행 시 변경 가능)",
+        "passport": "출국예정일 기준 3개월 이상 + 발급 후 10년 이내",
+    },
+    "튀르키예": {
+        "visa": "90일 이하 무비자",
+        "stay": "180일 중 최대 90일",
+        "eta": "ESTA/ETA 불필요",
+        "passport": "입국일 기준 150일 이상 권장",
+    },
+    "아랍에미리트": {
+        "visa": "90일 이하 무비자",
+        "stay": "180일 중 최대 90일",
+        "eta": "ESTA/ETA 불필요",
+        "passport": "일반적으로 6개월 이상 유효기간 필요",
+    },
+    "호주": {
+        "visa": "비자 필요",
+        "stay": "승인 비자 조건에 따름",
+        "eta": "ETA 또는 eVisitor 사전 신청 필요",
+        "passport": "체류기간 동안 유효한 전자여권 필요",
+    },
+    "뉴질랜드": {
+        "visa": "90일 이하 무비자",
+        "stay": "최대 90일",
+        "eta": "NZeTA 필수",
+        "passport": "출국일 기준 3개월 이상 유효기간 필요",
+    },
+    "몽골": {
+        "visa": "90일 이하 무비자",
+        "stay": "최대 90일",
+        "eta": "ESTA/ETA 불필요",
+        "passport": "일반적으로 6개월 이상 유효기간 필요",
+    },
+    "라오스": {
+        "visa": "무비자 입국 가능",
+        "stay": "통상 30일 내외 (변동 가능)",
+        "eta": "전자비자(eVisa) 선택 가능",
+        "passport": "일반적으로 6개월 이상 유효기간 필요",
+    },
+    "이집트": {
+        "visa": "비자 필요",
+        "stay": "비자 조건에 따름",
+        "eta": "e-Visa 사전 신청 또는 도착비자 가능",
+        "passport": "일반적으로 6개월 이상 유효기간 필요",
+    },
+}
 
 
 # 1. 페이지 설정 (유지)
@@ -183,6 +344,94 @@ def get_destination_bgm(name_kr: str):
         "여행 설렘을 높여주는 월드 트래블 무드",
         "https://www.youtube.com/watch?v=2OEL4P1Rz04",
     )
+
+
+def extract_country_from_destination(name_kr: str):
+    """도시명 (국가명) 문자열에서 국가명만 추출합니다."""
+    if "(" in name_kr and ")" in name_kr:
+        return name_kr.split("(")[-1].replace(")", "").strip()
+    return name_kr.strip()
+
+
+def _summarize_entry_requirement_from_search(country: str):
+    """검색 결과 스니펫을 바탕으로 비자/입국 요건을 요약합니다."""
+    fallback = {
+        "visa": "검색 결과 기준 최신 정책 확인 필요",
+        "stay": "검색 결과에서 체류기간 확인 필요",
+        "eta": "검색 결과에서 ETA/ESTA 여부 확인 필요",
+        "passport": "대부분 국가에서 6개월 이상 유효기간 권장",
+        "source": "",
+    }
+
+    try:
+        with DDGS() as ddgs:
+            items = list(
+                ddgs.text(
+                    keywords=f"{country} 대한민국 여권 비자 체류 기간 ETA ESTA 여권 유효기간",
+                    region="kr-kr",
+                    safesearch="moderate",
+                    max_results=5,
+                )
+            )
+
+        if not items:
+            return fallback
+
+        text_blob = " ".join(
+            [item.get("title", "") + " " + item.get("body", "") for item in items]
+        )
+
+        visa = fallback["visa"]
+        if "무비자" in text_blob:
+            visa = "무비자 가능 (검색 결과 기반)"
+        elif "비자 필요" in text_blob or "사증" in text_blob:
+            visa = "비자 필요 가능성 높음 (검색 결과 기반)"
+
+        stay = fallback["stay"]
+        stay_match = re.search(r"(\d{1,3})\s*일", text_blob)
+        if stay_match:
+            stay = f"약 {stay_match.group(1)}일 내외 (검색 결과 기반)"
+
+        eta = fallback["eta"]
+        if "ESTA" in text_blob:
+            eta = "ESTA 필요 가능성 있음 (검색 결과 기반)"
+        elif "eTA" in text_blob or "ETA" in text_blob or "NZeTA" in text_blob:
+            eta = "ETA/eTA 필요 가능성 있음 (검색 결과 기반)"
+        elif "불필요" in text_blob and ("ETA" in text_blob or "ESTA" in text_blob):
+            eta = "ETA/ESTA 불필요 가능성 있음 (검색 결과 기반)"
+
+        passport = fallback["passport"]
+        if "6개월" in text_blob:
+            passport = "입국 시 여권 유효기간 6개월 이상 필요 가능성 높음"
+        elif "3개월" in text_blob:
+            passport = "출국 예정일 기준 3개월 이상 필요 가능성 있음"
+        elif "150일" in text_blob:
+            passport = "입국일 기준 150일 이상 필요 가능성 있음"
+
+        first = items[0]
+        source = first.get("href") or first.get("url") or ""
+
+        return {
+            "visa": visa,
+            "stay": stay,
+            "eta": eta,
+            "passport": passport,
+            "source": source,
+        }
+    except Exception:
+        return fallback
+
+
+def get_entry_requirement_for_korean_passport(destination_name: str):
+    """대한민국 여권 기준 비자/입국 요건을 반환합니다."""
+    country = extract_country_from_destination(destination_name)
+    requirement = ENTRY_REQUIREMENTS_BY_COUNTRY.get(country)
+
+    if requirement:
+        return country, requirement, False
+
+    searched_requirement = _summarize_entry_requirement_from_search(country)
+    return country, searched_requirement, True
 
 
 def render_kakao_share_copy_button(share_text: str):
@@ -373,6 +622,21 @@ if st.button("🚀 여행지 3곳 추천받기"):
 
                         st.markdown("#### 🎉 현지 축제/이벤트 (검색 기반)")
                         st.markdown(festival_summary)
+
+                        country, entry_info, is_search_based = get_entry_requirement_for_korean_passport(dest['name_kr'])
+                        st.markdown("#### 🛂 한국 여권 기준 비자/입국 조건")
+                        st.markdown(
+                            f"""
+                            - **비자 필요 여부**: {entry_info['visa']}
+                            - **체류 가능 기간**: {entry_info['stay']}
+                            - **ESTA / ETA 필요 여부**: {entry_info['eta']}
+                            - **여권 유효기간 조건**: {entry_info['passport']}
+                            """
+                        )
+                        if is_search_based:
+                            st.caption("※ 위 정보는 실시간 검색 요약입니다. 예약/출국 전 외교부 해외안전여행 및 해당국 대사관 공지로 최종 확인하세요.")
+                            if entry_info.get("source"):
+                                st.link_button("🔎 참고 링크(검색 결과)", entry_info["source"])
 
                         bgm_title, bgm_url = get_destination_bgm(dest['name_kr'])
                         st.markdown("#### 🎵 여행지 무드 BGM")
