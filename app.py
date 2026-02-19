@@ -4,6 +4,7 @@ from openai import OpenAI
 import json
 import pandas as pd
 import requests
+import re
 from datetime import datetime
 from duckduckgo_search import DDGS
 
@@ -352,12 +353,85 @@ def extract_country_from_destination(name_kr: str):
     return name_kr.strip()
 
 
+def _summarize_entry_requirement_from_search(country: str):
+    """검색 결과 스니펫을 바탕으로 비자/입국 요건을 요약합니다."""
+    fallback = {
+        "visa": "검색 결과 기준 최신 정책 확인 필요",
+        "stay": "검색 결과에서 체류기간 확인 필요",
+        "eta": "검색 결과에서 ETA/ESTA 여부 확인 필요",
+        "passport": "대부분 국가에서 6개월 이상 유효기간 권장",
+        "source": "",
+    }
+
+    try:
+        with DDGS() as ddgs:
+            items = list(
+                ddgs.text(
+                    keywords=f"{country} 대한민국 여권 비자 체류 기간 ETA ESTA 여권 유효기간",
+                    region="kr-kr",
+                    safesearch="moderate",
+                    max_results=5,
+                )
+            )
+
+        if not items:
+            return fallback
+
+        text_blob = " ".join(
+            [item.get("title", "") + " " + item.get("body", "") for item in items]
+        )
+
+        visa = fallback["visa"]
+        if "무비자" in text_blob:
+            visa = "무비자 가능 (검색 결과 기반)"
+        elif "비자 필요" in text_blob or "사증" in text_blob:
+            visa = "비자 필요 가능성 높음 (검색 결과 기반)"
+
+        stay = fallback["stay"]
+        stay_match = re.search(r"(\d{1,3})\s*일", text_blob)
+        if stay_match:
+            stay = f"약 {stay_match.group(1)}일 내외 (검색 결과 기반)"
+
+        eta = fallback["eta"]
+        if "ESTA" in text_blob:
+            eta = "ESTA 필요 가능성 있음 (검색 결과 기반)"
+        elif "eTA" in text_blob or "ETA" in text_blob or "NZeTA" in text_blob:
+            eta = "ETA/eTA 필요 가능성 있음 (검색 결과 기반)"
+        elif "불필요" in text_blob and ("ETA" in text_blob or "ESTA" in text_blob):
+            eta = "ETA/ESTA 불필요 가능성 있음 (검색 결과 기반)"
+
+        passport = fallback["passport"]
+        if "6개월" in text_blob:
+            passport = "입국 시 여권 유효기간 6개월 이상 필요 가능성 높음"
+        elif "3개월" in text_blob:
+            passport = "출국 예정일 기준 3개월 이상 필요 가능성 있음"
+        elif "150일" in text_blob:
+            passport = "입국일 기준 150일 이상 필요 가능성 있음"
+
+        first = items[0]
+        source = first.get("href") or first.get("url") or ""
+
+        return {
+            "visa": visa,
+            "stay": stay,
+            "eta": eta,
+            "passport": passport,
+            "source": source,
+        }
+    except Exception:
+        return fallback
+
+
 def get_entry_requirement_for_korean_passport(destination_name: str):
     """대한민국 여권 기준 비자/입국 요건을 반환합니다."""
     country = extract_country_from_destination(destination_name)
     requirement = ENTRY_REQUIREMENTS_BY_COUNTRY.get(country)
 
     if requirement:
+        return country, requirement, False
+
+    searched_requirement = _summarize_entry_requirement_from_search(country)
+    return country, searched_requirement, True
         return country, requirement
 
     fallback = {
@@ -558,6 +632,7 @@ if st.button("🚀 여행지 3곳 추천받기"):
                         st.markdown("#### 🎉 현지 축제/이벤트 (검색 기반)")
                         st.markdown(festival_summary)
 
+                        country, entry_info, is_search_based = get_entry_requirement_for_korean_passport(dest['name_kr'])
                         country, entry_info = get_entry_requirement_for_korean_passport(dest['name_kr'])
                         st.markdown("#### 🛂 한국 여권 기준 비자/입국 조건")
                         st.markdown(
@@ -568,6 +643,10 @@ if st.button("🚀 여행지 3곳 추천받기"):
                             - **여권 유효기간 조건**: {entry_info['passport']}
                             """
                         )
+                        if is_search_based:
+                            st.caption("※ 위 정보는 실시간 검색 요약입니다. 예약/출국 전 외교부 해외안전여행 및 해당국 대사관 공지로 최종 확인하세요.")
+                            if entry_info.get("source"):
+                                st.link_button("🔎 참고 링크(검색 결과)", entry_info["source"])
                         if country not in ENTRY_REQUIREMENTS_BY_COUNTRY:
                             st.caption("※ 자동 요약에 없는 국가입니다. 출국 전 외교부 해외안전여행 및 해당국 대사관 공지를 꼭 확인하세요.")
 
