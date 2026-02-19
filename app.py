@@ -612,14 +612,22 @@ def get_weather_summary(latitude: float, longitude: float, weather_api_key: str)
 
 
 def build_regret_summary(regret_risk_warnings):
-    """후회 가능성 경고 목록을 상단 요약용 점수/한줄로 변환합니다."""
+    """후회 가능성 경고 목록을 상단 요약용 추천도 별점/한줄로 변환합니다."""
     warning_count = len(regret_risk_warnings)
-    regret_score = max(40, 100 - warning_count * 20)
+    recommended_stars = max(1, 5 - warning_count)
+    star_rating = "⭐" * recommended_stars + "☆" * (5 - recommended_stars)
     if warning_count:
         one_liner = regret_risk_warnings[0]
     else:
-        one_liner = "스타일 미스매치 신호가 크지 않아요."
-    return regret_score, one_liner
+        one_liner = "전반적으로 잘 맞는 여행지지만, 완벽한 여행지는 없어서 소소한 불편은 있을 수 있어요."
+    return star_rating, one_liner
+
+
+def ensure_minimum_regret_warning(regret_risk_warnings):
+    """후회 가능성 상세에 항상 최소 1개 경고가 노출되도록 보정합니다."""
+    if regret_risk_warnings:
+        return regret_risk_warnings
+    return ["⚠️ 완벽한 여행지는 없어요. 숙소/자연환경에 따라 벌레가 보일 수 있으니 방충 대비를 챙기세요."]
 
 
 def build_weather_core_summary(weather_summary: str):
@@ -1129,7 +1137,8 @@ if st.button("🚀 여행지 3곳 추천받기"):
                         festival_summary = get_festival_summary(dest['name_kr'])
                         country, entry_info, is_search_based = get_entry_requirement_for_korean_passport(dest['name_kr'])
 
-                        regret_score, regret_one_liner = build_regret_summary(regret_risk_warnings)
+                        regret_ratings, regret_one_liner = build_regret_summary(regret_risk_warnings)
+                        regret_risk_warnings = ensure_minimum_regret_warning(regret_risk_warnings)
                         weather_core = build_weather_core_summary(weather_summary)
                         budget_summary = build_budget_range_summary(dest['total_budget'])
                         primary_caution = build_primary_caution(regret_risk_warnings, seasonal_note)
@@ -1137,7 +1146,7 @@ if st.button("🚀 여행지 3곳 추천받기"):
                         st.markdown("#### ✅ 상단 요약")
                         metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
                         with metric_col1:
-                            st.metric("후회 가능성", f"{regret_score}점")
+                            st.metric("추천도", regret_ratings)
                             st.caption(regret_one_liner)
                         with metric_col2:
                             st.metric("날씨 핵심", "현재/우기/체감")
@@ -1150,11 +1159,8 @@ if st.button("🚀 여행지 3곳 추천받기"):
                             st.caption(primary_caution)
 
                         with st.expander("🧠 후회 가능성 상세", expanded=False):
-                            if regret_risk_warnings:
-                                for warning_message in regret_risk_warnings:
-                                    st.warning(warning_message)
-                            else:
-                                st.success("✅ 현재 선택한 여행 스타일과 잘 맞는 목적지예요.")
+                            for warning_message in regret_risk_warnings:
+                                st.warning(warning_message)
 
                         with st.expander("🌤️ 날씨 자세히", expanded=False):
                             st.write(weather_summary)
