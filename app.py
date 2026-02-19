@@ -230,11 +230,11 @@ def get_landmark_image(query: str):
             return wiki_image, None
 
         return None, "대표 이미지를 찾지 못했어요."
-    except Exception as exc:
+    except Exception:
         wiki_image = _get_wikipedia_image(query)
         if wiki_image:
             return wiki_image, None
-        return None, f"대표 이미지 조회 실패: {exc}"
+        return None, "대표 이미지 서비스 접근이 제한되어 이미지를 불러오지 못했어요."
 
 
 def get_best_travel_season(latitude: float):
@@ -432,6 +432,15 @@ def get_entry_requirement_for_korean_passport(destination_name: str):
 
     searched_requirement = _summarize_entry_requirement_from_search(country)
     return country, searched_requirement, True
+        return country, requirement
+
+    fallback = {
+        "visa": "국가별 상이 (최신 정책 확인 필요)",
+        "stay": "국가별 상이",
+        "eta": "국가별 상이",
+        "passport": "대부분 국가에서 6개월 이상 유효기간 권장",
+    }
+    return country, fallback
 
 
 def render_kakao_share_copy_button(share_text: str):
@@ -624,6 +633,7 @@ if st.button("🚀 여행지 3곳 추천받기"):
                         st.markdown(festival_summary)
 
                         country, entry_info, is_search_based = get_entry_requirement_for_korean_passport(dest['name_kr'])
+                        country, entry_info = get_entry_requirement_for_korean_passport(dest['name_kr'])
                         st.markdown("#### 🛂 한국 여권 기준 비자/입국 조건")
                         st.markdown(
                             f"""
@@ -637,6 +647,8 @@ if st.button("🚀 여행지 3곳 추천받기"):
                             st.caption("※ 위 정보는 실시간 검색 요약입니다. 예약/출국 전 외교부 해외안전여행 및 해당국 대사관 공지로 최종 확인하세요.")
                             if entry_info.get("source"):
                                 st.link_button("🔎 참고 링크(검색 결과)", entry_info["source"])
+                        if country not in ENTRY_REQUIREMENTS_BY_COUNTRY:
+                            st.caption("※ 자동 요약에 없는 국가입니다. 출국 전 외교부 해외안전여행 및 해당국 대사관 공지를 꼭 확인하세요.")
 
                         bgm_title, bgm_url = get_destination_bgm(dest['name_kr'])
                         st.markdown("#### 🎵 여행지 무드 BGM")
