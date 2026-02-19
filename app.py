@@ -230,8 +230,45 @@ def _get_wikipedia_image(query: str):
     return None
 
 
+def _get_google_image(query: str):
+    """Google 이미지 검색 결과에서 대표 이미지를 조회합니다."""
+    endpoint = "https://www.google.com/search"
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/125.0.0.0 Safari/537.36"
+        )
+    }
+
+    for keyword in _extract_destination_keywords(query):
+        try:
+            response = requests.get(
+                endpoint,
+                params={"q": keyword, "tbm": "isch", "hl": "ko"},
+                headers=headers,
+                timeout=10,
+            )
+            response.raise_for_status()
+
+            matches = re.findall(
+                r'https://encrypted-tbn0\.gstatic\.com/images\?[^"\'\s<>]+',
+                response.text,
+            )
+            if matches:
+                return matches[0]
+        except requests.RequestException:
+            continue
+
+    return None
+
+
 def get_landmark_image(query: str):
-    """DuckDuckGo + Wikipedia로 여행지 대표 이미지를 가져옵니다."""
+    """Google 이미지 검색 + DuckDuckGo + Wikipedia 순으로 대표 이미지를 가져옵니다."""
+    google_image = _get_google_image(f"{query} landmark")
+    if google_image:
+        return google_image, None
+
     try:
         with DDGS() as ddgs:
             results = list(
@@ -282,6 +319,10 @@ def get_representative_food(query: str):
         food_name = "현지 대표 요리"
 
     image_query = food_name if food_name != "현지 대표 요리" else f"{keywords[0]} 대표 음식"
+
+    google_image = _get_google_image(image_query)
+    if google_image:
+        return food_name, google_image, None
 
     try:
         with DDGS() as ddgs:
@@ -730,13 +771,8 @@ if st.button("🚀 여행지 3곳 추천받기"):
                         st.markdown("#### 🐷 대표 먹거리")
                         food_name, food_image_url, food_image_error = get_representative_food(dest['name_kr'])
                         if food_image_url:
-                            food_col1, food_col2 = st.columns([1, 2])
-                            with food_col1:
-                                st.image(food_image_url, caption=f"🐷 {food_name}", use_container_width=True)
-                            with food_col2:
-                                st.markdown(f"### 🐷 {food_name}")
+                            st.image(food_image_url, use_container_width=True)
                         else:
-                            st.markdown(f"### 🐷 {food_name}")
                             st.caption(food_image_error)
 
                         st.info(f"💡 **추천 이유**: {dest['reason']}")
