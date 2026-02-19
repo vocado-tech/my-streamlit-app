@@ -624,7 +624,6 @@ if st.button("🚀 여행지 3곳 추천받기"):
                         st.markdown(festival_summary)
 
                         country, entry_info, is_search_based = get_entry_requirement_for_korean_passport(dest['name_kr'])
-                        country, entry_info = get_entry_requirement_for_korean_passport(dest['name_kr'])
                         st.markdown("#### 🛂 한국 여권 기준 비자/입국 조건")
                         st.markdown(
                             f"""
