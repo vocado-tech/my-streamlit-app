@@ -432,15 +432,6 @@ def get_entry_requirement_for_korean_passport(destination_name: str):
 
     searched_requirement = _summarize_entry_requirement_from_search(country)
     return country, searched_requirement, True
-        return country, requirement
-
-    fallback = {
-        "visa": "국가별 상이 (최신 정책 확인 필요)",
-        "stay": "국가별 상이",
-        "eta": "국가별 상이",
-        "passport": "대부분 국가에서 6개월 이상 유효기간 권장",
-    }
-    return country, fallback
 
 
 def render_kakao_share_copy_button(share_text: str):
