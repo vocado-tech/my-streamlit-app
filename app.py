@@ -615,7 +615,7 @@ def build_regret_summary(regret_risk_warnings):
     """후회 가능성 경고 목록을 상단 요약용 추천도 별점/한줄로 변환합니다."""
     warning_count = len(regret_risk_warnings)
     recommended_stars = max(1, 5 - warning_count)
-    star_rating = "⭐" * recommended_stars + "☆" * (5 - recommended_stars)
+    star_rating = " ".join(["😊⭐" for _ in range(recommended_stars)] + ["☆" for _ in range(5 - recommended_stars)])
     if warning_count:
         one_liner = regret_risk_warnings[0]
     else:
@@ -648,6 +648,25 @@ def build_weather_core_summary(weather_summary: str):
     return f"{current_weather} / {current_temp} / 체감 {feels_like} / {rainy_flag}"
 
 
+def build_weather_emoji_display(weather_summary: str):
+    """날씨 핵심 문구를 이모지+설명으로 변환합니다."""
+    weather_core = build_weather_core_summary(weather_summary)
+    lower_text = weather_core.lower()
+
+    if any(keyword in lower_text for keyword in ["비", "소나기", "rain", "drizzle"]):
+        weather_emoji = "🌧️"
+    elif any(keyword in lower_text for keyword in ["눈", "snow"]):
+        weather_emoji = "❄️"
+    elif any(keyword in lower_text for keyword in ["흐림", "구름", "cloud"]):
+        weather_emoji = "☁️"
+    elif any(keyword in lower_text for keyword in ["천둥", "storm", "번개"]):
+        weather_emoji = "⛈️"
+    else:
+        weather_emoji = "☀️"
+
+    return weather_emoji, weather_core
+
+
 def build_budget_range_summary(total_budget_text: str):
     """총 예산 문구에서 ± 범위를 추정해 요약합니다."""
     numbers = [int(value.replace(",", "")) for value in re.findall(r"\d[\d,]*", total_budget_text)]
@@ -662,7 +681,22 @@ def build_budget_range_summary(total_budget_text: str):
         center = numbers[0]
         spread = center * 0.2
 
-    return f"약 {center:,.0f}원 (±{spread:,.0f}원)"
+    center_manwon = center / 10000
+    spread_manwon = spread / 10000
+    return f"약 {center_manwon:,.0f}만원 (±{spread_manwon:,.0f}만원)"
+
+
+def to_manwon_text(raw_text: str):
+    """숫자/원 단위 텍스트를 만원 단위 텍스트로 변환합니다."""
+    numbers = [int(value.replace(",", "")) for value in re.findall(r"\d[\d,]*", raw_text)]
+    if not numbers:
+        return raw_text
+
+    manwon_values = [f"{number / 10000:,.0f}만원" for number in numbers]
+
+    if len(manwon_values) == 1:
+        return f"약 {manwon_values[0]}"
+    return " ~ ".join(manwon_values)
 
 
 def build_primary_caution(regret_risk_warnings, seasonal_note: str):
@@ -1139,24 +1173,22 @@ if st.button("🚀 여행지 3곳 추천받기"):
 
                         regret_ratings, regret_one_liner = build_regret_summary(regret_risk_warnings)
                         regret_risk_warnings = ensure_minimum_regret_warning(regret_risk_warnings)
-                        weather_core = build_weather_core_summary(weather_summary)
+                        weather_emoji, weather_core = build_weather_emoji_display(weather_summary)
                         budget_summary = build_budget_range_summary(dest['total_budget'])
-                        primary_caution = build_primary_caution(regret_risk_warnings, seasonal_note)
+                        total_budget_in_manwon = to_manwon_text(dest['total_budget'])
 
                         st.markdown("#### ✅ 상단 요약")
-                        metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+                        metric_col1, metric_col2, metric_col3 = st.columns(3)
                         with metric_col1:
                             st.metric("추천도", regret_ratings)
                             st.caption(regret_one_liner)
                         with metric_col2:
-                            st.metric("날씨 핵심", "현재/우기/체감")
+                            st.markdown("**날씨 핵심**")
+                            st.markdown(f"<div style='font-size: 4rem; line-height: 1;'>{weather_emoji}</div>", unsafe_allow_html=True)
                             st.caption(weather_core)
                         with metric_col3:
                             st.metric("예산 총액", budget_summary)
-                            st.caption(dest['total_budget'])
-                        with metric_col4:
-                            st.metric("주의", "확인 필요")
-                            st.caption(primary_caution)
+                            st.caption(total_budget_in_manwon)
 
                         with st.expander("🧠 후회 가능성 상세", expanded=False):
                             for warning_message in regret_risk_warnings:
