@@ -169,6 +169,26 @@ ENTRY_REQUIREMENTS_BY_COUNTRY = {
 }
 
 
+REPRESENTATIVE_FOOD_BY_DESTINATION = {
+    "일본": "라멘",
+    "오사카": "타코야키",
+    "도쿄": "스시",
+    "중국": "샤오룽바오",
+    "대만": "우육면",
+    "홍콩": "딤섬",
+    "베트남": "쌀국수",
+    "태국": "팟타이",
+    "싱가포르": "칠리 크랩",
+    "미국": "바비큐",
+    "프랑스": "크루아상",
+    "이탈리아": "피자",
+    "스페인": "빠에야",
+    "튀르키예": "케밥",
+    "호주": "미트파이",
+    "멕시코": "타코",
+}
+
+
 # 1. 페이지 설정 (유지)
 st.set_page_config(page_title="NoRegret Trip", page_icon="✈️", layout="wide")
 
@@ -182,6 +202,14 @@ def _extract_destination_keywords(query: str):
     if "(" in base:
         base = base.split("(")[0].strip()
     return [query, base]
+
+
+def _extract_country_name(query: str):
+    """도시명(국가명) 형태 문자열에서 국가명만 분리합니다."""
+    match = re.search(r"\((.*?)\)", query)
+    if match:
+        return match.group(1).strip()
+    return ""
 
 
 def _get_wikipedia_image(query: str):
@@ -235,6 +263,48 @@ def get_landmark_image(query: str):
         if wiki_image:
             return wiki_image, None
         return None, "대표 이미지 서비스 접근이 제한되어 이미지를 불러오지 못했어요."
+
+
+def get_representative_food(query: str):
+    """도시/국가 기준 대표 먹거리 이름과 이미지를 반환합니다."""
+    keywords = _extract_destination_keywords(query)
+    country_name = _extract_country_name(query)
+    if country_name:
+        keywords.append(country_name)
+
+    food_name = None
+    for keyword in keywords:
+        if keyword in REPRESENTATIVE_FOOD_BY_DESTINATION:
+            food_name = REPRESENTATIVE_FOOD_BY_DESTINATION[keyword]
+            break
+
+    if not food_name:
+        food_name = "현지 대표 요리"
+
+    image_query = food_name if food_name != "현지 대표 요리" else f"{keywords[0]} 대표 음식"
+
+    try:
+        with DDGS() as ddgs:
+            results = list(
+                ddgs.images(
+                    keywords=image_query,
+                    region="kr-kr",
+                    safesearch="moderate",
+                    size="Medium",
+                    max_results=1,
+                )
+            )
+
+        if results and results[0].get("image"):
+            return food_name, results[0]["image"], None
+    except Exception:
+        pass
+
+    food_image = _get_wikipedia_image(food_name)
+    if food_image:
+        return food_name, food_image, None
+
+    return food_name, None, "대표 먹거리 이미지를 찾지 못했어요."
 
 
 def get_best_travel_season(latitude: float):
@@ -656,6 +726,18 @@ if st.button("🚀 여행지 3곳 추천받기"):
                             st.image(image_url, caption=f"{dest['name_kr']} 대표 랜드마크", use_container_width=True)
                         else:
                             st.warning(image_error)
+
+                        st.markdown("#### 🐷 대표 먹거리")
+                        food_name, food_image_url, food_image_error = get_representative_food(dest['name_kr'])
+                        if food_image_url:
+                            food_col1, food_col2 = st.columns([1, 2])
+                            with food_col1:
+                                st.image(food_image_url, caption=f"🐷 {food_name}", use_container_width=True)
+                            with food_col2:
+                                st.markdown(f"### 🐷 {food_name}")
+                        else:
+                            st.markdown(f"### 🐷 {food_name}")
+                            st.caption(food_image_error)
 
                         st.info(f"💡 **추천 이유**: {dest['reason']}")
 
