@@ -69,11 +69,11 @@ def get_landmark_image(query: str):
             return wiki_image, None
 
         return None, "대표 이미지를 찾지 못했어요."
-    except Exception as exc:
+    except Exception:
         wiki_image = _get_wikipedia_image(query)
         if wiki_image:
             return wiki_image, None
-        return None, f"대표 이미지 조회 실패: {exc}"
+        return None, "대표 이미지 서비스 접근이 제한되어 이미지를 불러오지 못했어요."
 
 
 def get_best_travel_season(latitude: float):
