@@ -1201,7 +1201,6 @@ if st.button("🚀 여행지 3곳 추천받기"):
                         weather_summary = get_weather_summary(dest['latitude'], dest['longitude'], weather_api_key)
                         seasonal_note = get_seasonal_travel_note(dest['name_kr'], dest['latitude'], travel_dates)
                         festival_summary = get_festival_summary(dest['name_kr'])
-                        destination_issues, issue_source = get_destination_issue_summary(dest['name_kr'])
                         country, entry_info, is_search_based = get_entry_requirement_for_korean_passport(dest['name_kr'])
 
                         regret_ratings, regret_one_liner = build_regret_summary(regret_risk_warnings)
@@ -1223,16 +1222,9 @@ if st.button("🚀 여행지 3곳 추천받기"):
                             st.metric("예산 총액", budget_summary)
                             st.caption(total_budget_in_manwon)
 
-                        with st.expander("🧠 후회 가능성 상세", expanded=False):
+                        with st.expander("🧠 😢 상세", expanded=False):
                             for warning_message in regret_risk_warnings:
                                 st.warning(warning_message)
-
-                        with st.expander("🔎 여행지 문제점(검색 기반)", expanded=False):
-                            for issue_item in destination_issues:
-                                st.markdown(issue_item)
-                            if issue_source:
-                                st.link_button("문제점 참고 링크", issue_source)
-                            st.caption("※ 검색 스니펫 요약이므로 실제 체감은 시기/지역/개인 성향에 따라 달라질 수 있어요.")
 
                         with st.expander("🌤️ 날씨 자세히", expanded=False):
                             st.write(weather_summary)
