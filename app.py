@@ -993,10 +993,12 @@ with col2:
     budget_level = st.selectbox("예산 수준", ["가성비 (아끼기)", "적당함 (평균)", "럭셔리 (플렉스)"])
     no_drive = st.checkbox("운전 못해요ㅠㅠ (렌트카 없이 다니고 싶어요)")
 
+today = datetime.now().date()
 travel_dates = st.date_input(
     "여행 날짜 (선택)",
-    value=(datetime.now().date(), datetime.now().date()),
-    help="여행 기간을 선택하면 해당 시기의 평균 기온/강수량과 우기·태풍 경고를 함께 안내해요.",
+    value=(today, today),
+    min_value=today,
+    help="오늘 이후 일정만 선택할 수 있어요. 선택한 기간 기준으로 평균 기온/강수량과 우기·태풍 정보를 안내합니다.",
 )
 
 etc_req = st.text_input("특별 요청 (예: 사막이 보고 싶어요, 미술관 투어 원함)")
