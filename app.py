@@ -615,7 +615,7 @@ def build_regret_summary(regret_risk_warnings):
     """후회 가능성 경고 목록을 상단 요약용 추천도 별점/한줄로 변환합니다."""
     warning_count = len(regret_risk_warnings)
     recommended_stars = max(1, 5 - warning_count)
-    star_rating = " ".join(["😊⭐" for _ in range(recommended_stars)] + ["☆" for _ in range(5 - recommended_stars)])
+    star_rating = "".join(["⭐" for _ in range(recommended_stars)] + ["☆" for _ in range(5 - recommended_stars)])
     if warning_count:
         one_liner = regret_risk_warnings[0]
     else:
@@ -868,6 +868,36 @@ def get_regret_risk_warnings(style: str, destination_name: str, reason_text: str
                 warnings.append(rule["message"])
 
     return warnings
+
+
+def get_destination_issue_summary(destination_name: str):
+    """검색 결과 스니펫을 바탕으로 여행지의 자주 언급되는 이슈를 요약합니다."""
+    search_query = f"{destination_name} 여행 단점 문제점 주의할 점"
+
+    try:
+        with DDGS() as ddgs:
+            items = list(
+                ddgs.text(
+                    keywords=search_query,
+                    region="kr-kr",
+                    safesearch="moderate",
+                    max_results=4,
+                )
+            )
+
+        if not items:
+            return ["검색 기반 문제점을 찾지 못했어요. 최신 후기는 출발 전 다시 확인해 주세요."], None
+
+        issue_summaries = []
+        for item in items[:3]:
+            title = item.get("title", "검색 결과")
+            snippet = item.get("body", "요약 정보 없음")
+            issue_summaries.append(f"- **{title}**: {snippet}")
+
+        source = items[0].get("href")
+        return issue_summaries, source
+    except Exception as exc:
+        return [f"문제점 검색 요약을 가져오지 못했어요: {exc}"], None
 
 
 def _summarize_entry_requirement_from_search(country: str):
@@ -1171,6 +1201,7 @@ if st.button("🚀 여행지 3곳 추천받기"):
                         weather_summary = get_weather_summary(dest['latitude'], dest['longitude'], weather_api_key)
                         seasonal_note = get_seasonal_travel_note(dest['name_kr'], dest['latitude'], travel_dates)
                         festival_summary = get_festival_summary(dest['name_kr'])
+                        destination_issues, issue_source = get_destination_issue_summary(dest['name_kr'])
                         country, entry_info, is_search_based = get_entry_requirement_for_korean_passport(dest['name_kr'])
 
                         regret_ratings, regret_one_liner = build_regret_summary(regret_risk_warnings)
@@ -1195,6 +1226,13 @@ if st.button("🚀 여행지 3곳 추천받기"):
                         with st.expander("🧠 후회 가능성 상세", expanded=False):
                             for warning_message in regret_risk_warnings:
                                 st.warning(warning_message)
+
+                        with st.expander("🔎 여행지 문제점(검색 기반)", expanded=False):
+                            for issue_item in destination_issues:
+                                st.markdown(issue_item)
+                            if issue_source:
+                                st.link_button("문제점 참고 링크", issue_source)
+                            st.caption("※ 검색 스니펫 요약이므로 실제 체감은 시기/지역/개인 성향에 따라 달라질 수 있어요.")
 
                         with st.expander("🌤️ 날씨 자세히", expanded=False):
                             st.write(weather_summary)
