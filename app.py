@@ -611,6 +611,64 @@ def get_weather_summary(latitude: float, longitude: float, weather_api_key: str)
         return f"날씨 정보를 가져오지 못했어요: {exc}"
 
 
+def build_regret_summary(regret_risk_warnings):
+    """후회 가능성 경고 목록을 상단 요약용 점수/한줄로 변환합니다."""
+    warning_count = len(regret_risk_warnings)
+    regret_score = max(40, 100 - warning_count * 20)
+    if warning_count:
+        one_liner = regret_risk_warnings[0]
+    else:
+        one_liner = "스타일 미스매치 신호가 크지 않아요."
+    return regret_score, one_liner
+
+
+def build_weather_core_summary(weather_summary: str):
+    """날씨 상세 텍스트에서 상단 요약용 핵심 정보를 추출합니다."""
+    if "현재 날씨는" not in weather_summary:
+        return weather_summary
+
+    weather_match = re.search(
+        r"현재 날씨는 \*\*(.*?)\*\*, 기온은 \*\*([\d\.-]+°C)\*\* \(체감 \*\*([\d\.-]+°C)\*\*\).+?약 (\d+)회",
+        weather_summary,
+    )
+    if not weather_match:
+        return weather_summary
+
+    current_weather, current_temp, feels_like, rainy_slots = weather_match.groups()
+    rainy_slots = int(rainy_slots)
+    rainy_flag = "우산 준비" if rainy_slots >= 4 else "우기 아님"
+    return f"{current_weather} / {current_temp} / 체감 {feels_like} / {rainy_flag}"
+
+
+def build_budget_range_summary(total_budget_text: str):
+    """총 예산 문구에서 ± 범위를 추정해 요약합니다."""
+    numbers = [int(value.replace(",", "")) for value in re.findall(r"\d[\d,]*", total_budget_text)]
+    if not numbers:
+        return total_budget_text
+
+    if len(numbers) >= 2:
+        low, high = min(numbers), max(numbers)
+        center = (low + high) / 2
+        spread = (high - low) / 2
+    else:
+        center = numbers[0]
+        spread = center * 0.2
+
+    return f"약 {center:,.0f}원 (±{spread:,.0f}원)"
+
+
+def build_primary_caution(regret_risk_warnings, seasonal_note: str):
+    """상단 요약에 노출할 1줄 주의문을 반환합니다."""
+    if regret_risk_warnings:
+        return regret_risk_warnings[0]
+
+    seasonal_alerts = [line.strip() for line in seasonal_note.splitlines() if line.strip().startswith("⚠️")]
+    if seasonal_alerts:
+        return seasonal_alerts[0]
+
+    return "⚠️ 일교차와 야간 기온을 고려해 얇은 겉옷을 챙기세요."
+
+
 def get_festival_summary(query: str):
     """DuckDuckGo 텍스트 검색으로 축제/이벤트 정보 요약을 반환합니다."""
     current_year = datetime.now().year
@@ -1065,64 +1123,86 @@ if st.button("🚀 여행지 3곳 추천받기"):
 
                         st.info(f"💡 **추천 이유**: {dest['reason']}")
 
-                        st.markdown("#### 🧠 NoRegret 체크: 후회 가능성 예측")
                         regret_risk_warnings = get_regret_risk_warnings(style, dest['name_kr'], dest['reason'])
-                        if regret_risk_warnings:
-                            for warning_message in regret_risk_warnings:
-                                st.warning(warning_message)
-                        else:
-                            st.success("✅ 현재 선택한 여행 스타일과 잘 맞는 목적지예요.")
-
                         weather_summary = get_weather_summary(dest['latitude'], dest['longitude'], weather_api_key)
                         seasonal_note = get_seasonal_travel_note(dest['name_kr'], dest['latitude'], travel_dates)
                         festival_summary = get_festival_summary(dest['name_kr'])
-
-                        st.markdown("#### 🌤️ 현지 날씨 (실시간 예보 + 계절 리스크)")
-                        st.write(weather_summary)
-                        st.markdown("#### 🌦️ 여행 기간 기후/시기 적합성")
-                        st.markdown(seasonal_note)
-
-                        st.markdown("#### 🎉 현지 축제/이벤트 (검색 기반)")
-                        st.markdown(festival_summary)
-
                         country, entry_info, is_search_based = get_entry_requirement_for_korean_passport(dest['name_kr'])
-                        st.markdown("#### 🛂 한국 여권 기준 비자/입국 조건")
-                        st.markdown(
-                            f"""
-                            - **비자 필요 여부**: {entry_info['visa']}
-                            - **체류 가능 기간**: {entry_info['stay']}
-                            - **ESTA / ETA 필요 여부**: {entry_info['eta']}
-                            - **여권 유효기간 조건**: {entry_info['passport']}
-                            """
-                        )
-                        if is_search_based:
-                            st.caption("※ 위 정보는 실시간 검색 요약입니다. 예약/출국 전 외교부 해외안전여행 및 해당국 대사관 공지로 최종 확인하세요.")
-                            if entry_info.get("source"):
-                                st.link_button("🔎 참고 링크(검색 결과)", entry_info["source"])
+
+                        regret_score, regret_one_liner = build_regret_summary(regret_risk_warnings)
+                        weather_core = build_weather_core_summary(weather_summary)
+                        budget_summary = build_budget_range_summary(dest['total_budget'])
+                        primary_caution = build_primary_caution(regret_risk_warnings, seasonal_note)
+
+                        st.markdown("#### ✅ 상단 요약")
+                        metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+                        with metric_col1:
+                            st.metric("후회 가능성", f"{regret_score}점")
+                            st.caption(regret_one_liner)
+                        with metric_col2:
+                            st.metric("날씨 핵심", "현재/우기/체감")
+                            st.caption(weather_core)
+                        with metric_col3:
+                            st.metric("예산 총액", budget_summary)
+                            st.caption(dest['total_budget'])
+                        with metric_col4:
+                            st.metric("주의", "확인 필요")
+                            st.caption(primary_caution)
+
+                        with st.expander("🧠 후회 가능성 상세", expanded=False):
+                            if regret_risk_warnings:
+                                for warning_message in regret_risk_warnings:
+                                    st.warning(warning_message)
+                            else:
+                                st.success("✅ 현재 선택한 여행 스타일과 잘 맞는 목적지예요.")
+
+                        with st.expander("🌤️ 날씨 자세히", expanded=False):
+                            st.write(weather_summary)
+                            st.markdown("#### 🌦️ 여행 기간 기후/시기 적합성")
+                            st.markdown(seasonal_note)
+
+                        with st.expander("🛂 비자/입국 조건", expanded=False):
+                            st.markdown(
+                                f"""
+                                - **비자 필요 여부**: {entry_info['visa']}
+                                - **체류 가능 기간**: {entry_info['stay']}
+                                - **ESTA / ETA 필요 여부**: {entry_info['eta']}
+                                - **여권 유효기간 조건**: {entry_info['passport']}
+                                """
+                            )
+                            if is_search_based:
+                                st.caption("※ 위 정보는 실시간 검색 요약입니다. 예약/출국 전 외교부 해외안전여행 및 해당국 대사관 공지로 최종 확인하세요.")
+                                if entry_info.get("source"):
+                                    st.link_button("🔎 참고 링크(검색 결과)", entry_info["source"])
+
+                        with st.expander("🎉 축제/이벤트", expanded=False):
+                            st.markdown(festival_summary)
+
                         bgm_title, bgm_url = get_destination_bgm(dest['name_kr'])
-                        st.markdown("#### 🎵 여행지 무드 BGM")
-                        st.caption(bgm_title)
-                        st.video(bgm_url)
+                        with st.expander("🎵 여행지 무드 BGM", expanded=False):
+                            st.caption(bgm_title)
+                            st.video(bgm_url)
 
-                        col_a, col_b = st.columns(2)
-                        with col_a:
-                            st.markdown("#### 🗓️ 추천 일정")
-                            itinerary_items = dest.get('itinerary', [])
-                            if isinstance(itinerary_items, list):
-                                for item in itinerary_items:
-                                    st.markdown(f"- {item}")
-                            else:
-                                st.write(itinerary_items)
+                        with st.expander("🗓️ 일정/예산 상세", expanded=False):
+                            col_a, col_b = st.columns(2)
+                            with col_a:
+                                st.markdown("#### 🗓️ 추천 일정")
+                                itinerary_items = dest.get('itinerary', [])
+                                if isinstance(itinerary_items, list):
+                                    for item in itinerary_items:
+                                        st.markdown(f"- {item}")
+                                else:
+                                    st.write(itinerary_items)
 
-                        with col_b:
-                            st.markdown("#### 💰 예상 예산")
-                            st.success(f"**{dest['total_budget']}**")
-                            budget_items = dest.get('budget_detail', [])
-                            if isinstance(budget_items, list):
-                                for item in budget_items:
-                                    st.caption(f"• {item}")
-                            else:
-                                st.caption(budget_items)
+                            with col_b:
+                                st.markdown("#### 💰 예상 예산")
+                                st.success(f"**{dest['total_budget']}**")
+                                budget_items = dest.get('budget_detail', [])
+                                if isinstance(budget_items, list):
+                                    for item in budget_items:
+                                        st.caption(f"• {item}")
+                                else:
+                                    st.caption(budget_items)
 
                         st.markdown("---")
                         url = f"https://www.skyscanner.co.kr/transport/flights/sela/{dest['airport_code']}"
