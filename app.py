@@ -390,12 +390,11 @@ st.markdown(
         max-height: 85vh;
         overflow-y: auto;
         background:
-            linear-gradient(to bottom, rgba(157, 220, 255, 0.35) 0 26px, #ffffff 26px 100%);
+            linear-gradient(to bottom, rgba(157, 220, 255, 0.25) 0 24px, #ffffff 24px 100%);
         border-radius: 16px;
         box-shadow: 0 16px 36px rgba(0, 0, 0, 0.2);
-        border-top: 8px solid rgba(120, 195, 245, 0.9);
         z-index: 999;
-        padding: 22px;
+        padding: 30px 24px 24px;
     }
     .st-key-cloud_chat_popup .stTextInput {
         margin-top: 10px;
