@@ -1161,16 +1161,69 @@ def get_weather_summary(latitude: float, longitude: float, weather_api_key: str)
         return f"날씨 정보를 가져오지 못했어요: {exc}"
 
 
-def build_regret_summary(regret_risk_warnings):
-    """후회 가능성 경고 목록을 상단 요약용 추천도 별점/한줄로 변환합니다."""
+def build_regret_summary(api_key: str, destination_name: str, reason_text: str, regret_risk_warnings, teleport_insight=None):
+    """AI로 추천도 별점/한줄 요약을 생성하고, 실패 시 휴리스틱으로 보정합니다."""
     warning_count = len(regret_risk_warnings)
-    recommended_stars = max(1, 5 - warning_count)
-    star_rating = "".join(["⭐" for _ in range(recommended_stars)] + ["☆" for _ in range(5 - recommended_stars)])
-    if warning_count:
-        one_liner = regret_risk_warnings[0]
-    else:
-        one_liner = "전반적으로 잘 맞는 여행지지만, 완벽한 여행지는 없어서 소소한 불편은 있을 수 있어요."
-    return star_rating, one_liner
+    quality_score = None
+    if teleport_insight:
+        quality_score = teleport_insight.get("quality_score")
+
+    fallback_stars = max(1, min(5, 4 - max(0, warning_count - 1)))
+    if quality_score is not None:
+        if quality_score >= 70:
+            fallback_stars += 1
+        elif quality_score < 50:
+            fallback_stars -= 1
+        fallback_stars = max(1, min(5, fallback_stars))
+
+    fallback_star_rating = "".join(["⭐" for _ in range(fallback_stars)] + ["☆" for _ in range(5 - fallback_stars)])
+    fallback_one_liner = (
+        regret_risk_warnings[0]
+        if warning_count
+        else "전반적으로 잘 맞는 여행지예요. 취향에 맞는 일정만 잘 짜면 만족도가 높을 가능성이 큽니다."
+    )
+
+    if not api_key:
+        return fallback_star_rating, fallback_one_liner
+
+    try:
+        client = OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            temperature=0.3,
+            response_format={"type": "json_object"},
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "당신은 여행지 추천 품질 평가자입니다. "
+                        "입력 정보를 바탕으로 솔직하게 1~5점 별점을 매기고 한 줄 코멘트를 작성하세요. "
+                        "점수 기준: 5 매우 추천, 4 추천, 3 보통, 2 아쉬움 큼, 1 비추천. "
+                        "출력은 JSON으로만 반환: {\"stars\": int, \"one_liner\": string}."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {
+                            "destination_name": destination_name,
+                            "reason_text": reason_text,
+                            "regret_risk_warnings": regret_risk_warnings,
+                            "teleport_quality_score": quality_score,
+                        },
+                        ensure_ascii=False,
+                    ),
+                },
+            ],
+        )
+        ai_result = json.loads(response.choices[0].message.content)
+        stars = int(ai_result.get("stars", fallback_stars))
+        stars = max(1, min(5, stars))
+        one_liner = str(ai_result.get("one_liner", fallback_one_liner)).strip() or fallback_one_liner
+        star_rating = "".join(["⭐" for _ in range(stars)] + ["☆" for _ in range(5 - stars)])
+        return star_rating, one_liner
+    except Exception:
+        return fallback_star_rating, fallback_one_liner
 
 
 def ensure_minimum_regret_warning(regret_risk_warnings):
@@ -1524,7 +1577,7 @@ def get_regret_risk_warnings(style: str, destination_name: str, reason_text: str
     ]
 
     for message in fallback_messages:
-        if len(warnings) >= 3:
+        if len(warnings) >= 2:
             break
         if message not in warnings:
             warnings.append(message)
@@ -1880,7 +1933,13 @@ if st.button("🚀 여행지 3곳 추천받기"):
                         festival_summary = get_festival_summary(dest['name_kr'])
                         country, entry_info, is_search_based = get_entry_requirement_for_korean_passport(dest['name_kr'])
 
-                        regret_ratings, regret_one_liner = build_regret_summary(regret_risk_warnings)
+                        regret_ratings, regret_one_liner = build_regret_summary(
+                            api_key,
+                            dest['name_kr'],
+                            dest['reason'],
+                            regret_risk_warnings,
+                            teleport_insight,
+                        )
                         regret_risk_warnings = ensure_minimum_regret_warning(regret_risk_warnings)
                         weather_emoji, weather_core = build_weather_emoji_display(weather_summary)
                         budget_summary = build_budget_range_summary(dest['total_budget'])
