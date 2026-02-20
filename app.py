@@ -10,6 +10,102 @@ from urllib.parse import quote_plus
 from duckduckgo_search import DDGS
 
 
+COUNTRY_NAME_ALIASES = {
+    "일본": "japan",
+    "중국": "china",
+    "대만": "taiwan",
+    "홍콩": "hong kong",
+    "베트남": "vietnam",
+    "태국": "thailand",
+    "싱가포르": "singapore",
+    "말레이시아": "malaysia",
+    "미국": "united states",
+    "캐나다": "canada",
+    "영국": "united kingdom",
+    "프랑스": "france",
+    "독일": "germany",
+    "이탈리아": "italy",
+    "스페인": "spain",
+    "포르투갈": "portugal",
+    "네덜란드": "netherlands",
+    "크로아티아": "croatia",
+    "아이슬란드": "iceland",
+    "튀르키예": "turkey",
+    "아랍에미리트": "united arab emirates",
+    "호주": "australia",
+    "뉴질랜드": "new zealand",
+    "몽골": "mongolia",
+    "라오스": "laos",
+    "이집트": "egypt",
+    "필리핀": "philippines",
+    "인도네시아": "indonesia",
+    "인도": "india",
+    "스위스": "switzerland",
+    "오스트리아": "austria",
+    "체코": "czech republic",
+    "헝가리": "hungary",
+    "핀란드": "finland",
+    "노르웨이": "norway",
+}
+
+CITY_NAME_ALIASES = {
+    "도쿄": "tokyo",
+    "오사카": "osaka",
+    "교토": "kyoto",
+    "후쿠오카": "fukuoka",
+    "삿포로": "sapporo",
+    "나고야": "nagoya",
+    "베이징": "beijing",
+    "상하이": "shanghai",
+    "광저우": "guangzhou",
+    "선전": "shenzhen",
+    "타이베이": "taipei",
+    "가오슝": "kaohsiung",
+    "홍콩": "hong kong",
+    "하노이": "hanoi",
+    "호치민": "ho chi minh city",
+    "다낭": "da nang",
+    "방콕": "bangkok",
+    "푸켓": "phuket",
+    "싱가포르": "singapore",
+    "쿠알라룸푸르": "kuala lumpur",
+    "뉴욕": "new york",
+    "로스앤젤레스": "los angeles",
+    "샌프란시스코": "san francisco",
+    "밴쿠버": "vancouver",
+    "토론토": "toronto",
+    "런던": "london",
+    "파리": "paris",
+    "베를린": "berlin",
+    "로마": "rome",
+    "마드리드": "madrid",
+    "바르셀로나": "barcelona",
+    "리스본": "lisbon",
+    "암스테르담": "amsterdam",
+    "두브로브니크": "dubrovnik",
+    "레이캬비크": "reykjavik",
+    "이스탄불": "istanbul",
+    "두바이": "dubai",
+    "시드니": "sydney",
+    "멜버른": "melbourne",
+    "오클랜드": "auckland",
+    "울란바토르": "ulaanbaatar",
+    "비엔티안": "vientiane",
+    "카이로": "cairo",
+    "마닐라": "manila",
+    "세부": "cebu",
+    "발리": "bali",
+    "자카르타": "jakarta",
+    "델리": "delhi",
+    "뭄바이": "mumbai",
+    "취리히": "zurich",
+    "빈": "vienna",
+    "프라하": "prague",
+    "부다페스트": "budapest",
+    "헬싱키": "helsinki",
+    "오슬로": "oslo",
+}
+
 ENTRY_REQUIREMENTS_BY_COUNTRY = {
     "일본": {
         "visa": "90일 이하 무비자",
@@ -807,29 +903,69 @@ def _format_teleport_score(score):
     return "데이터 없음"
 
 
+def _extract_city_country(destination_name: str):
+    city_name = destination_name.split("(")[0].strip()
+    country_name = ""
+    if "(" in destination_name and ")" in destination_name:
+        country_name = destination_name.split("(")[-1].replace(")", "").strip()
+    return city_name, country_name
+
+
+def _build_teleport_queries(destination_name: str):
+    city_name, country_name = _extract_city_country(destination_name)
+    city_alias = CITY_NAME_ALIASES.get(city_name, city_name)
+    country_alias = COUNTRY_NAME_ALIASES.get(country_name, country_name)
+
+    candidates = [
+        city_name,
+        city_alias,
+        f"{city_alias}, {country_alias}".strip(", "),
+        f"{city_name}, {country_alias}".strip(", "),
+    ]
+
+    queries = []
+    for query in candidates:
+        cleaned = " ".join((query or "").split())
+        if cleaned and cleaned.lower() not in [q.lower() for q in queries]:
+            queries.append(cleaned)
+
+    return city_name, queries
+
+
 @st.cache_data(show_spinner=False, ttl=60 * 60 * 12)
 def get_teleport_city_insights(destination_name: str):
     """Teleport API로 도시 생활 인사이트(생활비/안전/삶의 질/요약/사진)를 가져옵니다."""
-    city_name = destination_name.split("(")[0].strip()
+    original_city_name, search_queries = _build_teleport_queries(destination_name)
     search_url = "https://api.teleport.org/api/cities/"
 
     try:
-        search_res = requests.get(search_url, params={"search": city_name, "limit": 1}, timeout=12)
-        search_res.raise_for_status()
-        search_data = search_res.json()
+        urban_area_href = None
+        resolved_city_name = original_city_name
 
-        city_results = search_data.get("_embedded", {}).get("city:search-results", [])
-        if not city_results:
-            return None
+        for query in search_queries:
+            search_res = requests.get(search_url, params={"search": query, "limit": 5}, timeout=12)
+            search_res.raise_for_status()
+            search_data = search_res.json()
+            city_results = search_data.get("_embedded", {}).get("city:search-results", [])
 
-        city_href = city_results[0].get("_links", {}).get("city:item", {}).get("href")
-        if not city_href:
-            return None
+            for result in city_results:
+                city_href = result.get("_links", {}).get("city:item", {}).get("href")
+                if not city_href:
+                    continue
 
-        city_detail_res = requests.get(city_href, timeout=12)
-        city_detail_res.raise_for_status()
-        city_detail = city_detail_res.json()
-        urban_area_href = city_detail.get("_links", {}).get("city:urban_area", {}).get("href")
+                city_detail_res = requests.get(city_href, timeout=12)
+                city_detail_res.raise_for_status()
+                city_detail = city_detail_res.json()
+                candidate_urban_area = city_detail.get("_links", {}).get("city:urban_area", {}).get("href")
+
+                if candidate_urban_area:
+                    urban_area_href = candidate_urban_area
+                    resolved_city_name = city_detail.get("full_name", original_city_name).split(",")[0].strip()
+                    break
+
+            if urban_area_href:
+                break
+
         if not urban_area_href:
             return None
 
@@ -864,7 +1000,7 @@ def get_teleport_city_insights(destination_name: str):
             pros.append("✅ 핵심 지표는 평이한 수준으로, 일정과 예산만 맞추면 무난하게 즐기기 좋은 도시입니다.")
 
         return {
-            "city_name": city_name,
+            "city_name": resolved_city_name,
             "summary": summary,
             "cost_score": cost_score,
             "safety_score": safety_score,
