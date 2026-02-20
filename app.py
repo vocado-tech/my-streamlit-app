@@ -441,7 +441,7 @@ def get_followup_recommendations(api_key: str, user_message: str, destinations, 
 
 st.markdown('<div class="cloud-chat-helper">내가 도와줄게...</div>', unsafe_allow_html=True)
 
-if st.button("☁️", key="cloud_chat_icon", help="추천 재요청 챗봇 열기/닫기"):
+if st.button("☁️", key="cloud_chat_icon"):
     st.session_state.chat_open = not st.session_state.chat_open
 
 
