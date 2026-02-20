@@ -1577,19 +1577,6 @@ if st.button("🚀 여행지 3곳 추천받기"):
                         flight_links = build_flight_search_links(dest['name_kr'], dest['airport_code'], travel_dates)
                         price_signal = get_flight_price_signal(dest['name_kr'], dest['airport_code'], travel_dates)
 
-                        with st.expander("✈️ 항공권 가격 체감 (선택한 기간 기준)", expanded=False):
-                            st.markdown(
-                                f"**{price_signal['emoji']} {price_signal['label']}**\n\n{price_signal['reason']}"
-                            )
-                            st.caption("※ DuckDuckGo 검색 스니펫을 활용한 참고용 추정입니다. 실제 요금은 날짜/좌석/경유에 따라 달라질 수 있어요.")
-                            if price_signal.get("source"):
-                                st.link_button("🔎 가격 단서 출처 보기", price_signal["source"])
-                            link_col1, link_col2 = st.columns(2)
-                            with link_col1:
-                                st.link_button(f"Google Flights에서 {dest['name_kr']} 검색", flight_links["google_flights"])
-                            with link_col2:
-                                st.link_button(f"Skyscanner에서 {dest['name_kr']} 검색", flight_links["skyscanner"])
-
                         with st.expander("🛂 비자/입국 조건", expanded=False):
                             st.markdown(
                                 f"""
@@ -1635,6 +1622,13 @@ if st.button("🚀 여행지 3곳 추천받기"):
 
                         st.markdown("---")
                         st.link_button(f"✈️ {dest['name_kr']} 항공권 검색", flight_links["skyscanner"])
+                        st.caption(f"{price_signal['emoji']} {price_signal['label']} · {price_signal['reason']}")
+                        mini_col1, mini_col2 = st.columns([1, 1])
+                        with mini_col1:
+                            st.link_button("Google Flights", flight_links["google_flights"])
+                        with mini_col2:
+                            if price_signal.get("source"):
+                                st.link_button("가격 근거", price_signal["source"])
 
                 st.markdown("---")
                 st.markdown("### 🗳️ 친구들에게 투표받기")
