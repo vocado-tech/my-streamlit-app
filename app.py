@@ -386,21 +386,14 @@ st.markdown(
         position: fixed;
         right: 16px;
         bottom: 128px;
-        width: min(560px, calc(100vw - 32px));
-        max-height: 85vh;
+        width: min(380px, calc(100vw - 32px));
+        max-height: 70vh;
         overflow-y: auto;
-        background:
-            linear-gradient(to bottom, rgba(157, 220, 255, 0.2) 0 20px, #ffffff 20px 100%);
+        background: #ffffff;
         border-radius: 16px;
         box-shadow: 0 16px 36px rgba(0, 0, 0, 0.2);
         z-index: 999;
-        padding: 40px 24px 24px;
-    }
-    .st-key-cloud_chat_popup .stTextInput {
-        margin-top: 10px;
-    }
-    .st-key-cloud_chat_popup .stButton {
-        margin-top: 8px;
+        padding: 4px;
     }
     </style>
     """,
@@ -461,7 +454,7 @@ def get_followup_recommendations(api_key: str, user_message: str, destinations, 
 
 st.markdown('<div class="cloud-chat-helper">내가 도와줄게...</div>', unsafe_allow_html=True)
 
-if st.button("☁️", key="cloud_chat_icon"):
+if st.button("☁️", key="cloud_chat_icon", help="재추천/일정 상담 챗봇 열기·닫기 (☁️ 버튼 클릭)"):
     st.session_state.chat_open = not st.session_state.chat_open
 
 
@@ -1535,7 +1528,7 @@ if st.button("🚀 여행지 3곳 추천받기"):
 
 
 if st.session_state.chat_open:
-    chat_container = st.container(border=False, key="cloud_chat_popup")
+    chat_container = st.container(border=True, key="cloud_chat_popup")
     with chat_container:
         st.markdown("### ☁️ 재추천 챗봇")
         st.caption("재추천은 물론, 마음에 드는 여행지의 일정·관광지도 원하는 스타일에 맞춰 추천해 드려요.")
