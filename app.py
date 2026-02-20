@@ -1033,6 +1033,7 @@ def _summarize_entry_requirement_from_search(country: str):
 
 def get_entry_requirement_for_korean_passport(destination_name: str):
     """대한민국 여권 기준 비자/입국 요건을 반환합니다."""
+    country = extract_country_from_destination(destination_name)
     requirement = ENTRY_REQUIREMENTS_BY_COUNTRY.get(country)
 
     if requirement:
