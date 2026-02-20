@@ -691,6 +691,33 @@ def get_seasonal_travel_note(destination_name: str, latitude: float, travel_date
     )
 
 
+def _resolve_travel_date_range(travel_dates):
+    """여행 날짜 입력값을 시작일/종료일로 정규화합니다."""
+    today = datetime.now().date()
+
+    if not travel_dates:
+        return today, today
+
+    if isinstance(travel_dates, (list, tuple)) and len(travel_dates) == 2:
+        start_date, end_date = travel_dates
+    else:
+        start_date = end_date = travel_dates
+
+    if start_date > end_date:
+        start_date, end_date = end_date, start_date
+
+    return start_date, end_date
+
+
+def build_skyscanner_link(airport_code: str, travel_dates):
+    """선택한 여행 기간을 반영한 Skyscanner 항공권 검색 링크를 반환합니다."""
+    start_date, end_date = _resolve_travel_date_range(travel_dates)
+    return (
+        f"https://www.skyscanner.co.kr/transport/flights/sela/{airport_code.lower()}/"
+        f"{start_date.strftime('%y%m%d')}/{end_date.strftime('%y%m%d')}/"
+    )
+
+
 def get_weather_summary(latitude: float, longitude: float, weather_api_key: str):
     """OpenWeather API로 현재 날씨 + 단기 예보를 요약합니다."""
     if not weather_api_key:
@@ -1303,7 +1330,7 @@ travel_dates = st.date_input(
     "여행 날짜 (선택)",
     value=(today, today),
     min_value=today,
-    help="오늘 이후 일정만 선택할 수 있어요. 선택한 기간 기준으로 평균 기온/강수량과 우기·태풍 정보를 안내합니다.",
+    help="오늘 이후 일정만 선택할 수 있어요. 선택한 기간 기준으로 평균 기온/강수량과 우기·태풍 정보, 그리고 Skyscanner 검색 결과 페이지에서 같은 기간 요금 흐름을 확인할 수 있도록 안내합니다.",
 )
 
 etc_req = st.text_input("특별 요청 (예: 사막이 보고 싶어요, 미술관 투어 원함)")
@@ -1473,6 +1500,8 @@ if st.button("🚀 여행지 3곳 추천받기"):
                             st.markdown("#### 🌦️ 여행 기간 기후/시기 적합성")
                             st.markdown(seasonal_note)
 
+                        skyscanner_url = build_skyscanner_link(dest['airport_code'], travel_dates)
+
                         with st.expander("🛂 비자/입국 조건", expanded=False):
                             st.markdown(
                                 f"""
@@ -1517,8 +1546,8 @@ if st.button("🚀 여행지 3곳 추천받기"):
                                     st.caption(budget_items)
 
                         st.markdown("---")
-                        url = f"https://www.skyscanner.co.kr/transport/flights/sela/{dest['airport_code']}"
-                        st.link_button(f"✈️ {dest['name_kr']} 항공권 검색", url)
+                        st.link_button(f"✈️ {dest['name_kr']} 항공권 검색", skyscanner_url)
+                        st.caption("선택한 날짜/경로로 Skyscanner 결과가 열려요. 상단 요금 흐름(날짜별 최저가)에서 평소 대비 비싼지/저렴한지 확인해 주세요.")
 
                 st.markdown("---")
                 st.markdown("### 🗳️ 친구들에게 투표받기")
