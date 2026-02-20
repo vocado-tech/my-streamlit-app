@@ -390,11 +390,11 @@ st.markdown(
         max-height: 85vh;
         overflow-y: auto;
         background:
-            linear-gradient(to bottom, rgba(157, 220, 255, 0.25) 0 24px, #ffffff 24px 100%);
+            linear-gradient(to bottom, rgba(157, 220, 255, 0.2) 0 20px, #ffffff 20px 100%);
         border-radius: 16px;
         box-shadow: 0 16px 36px rgba(0, 0, 0, 0.2);
         z-index: 999;
-        padding: 30px 24px 24px;
+        padding: 40px 24px 24px;
     }
     .st-key-cloud_chat_popup .stTextInput {
         margin-top: 10px;
@@ -1535,7 +1535,7 @@ if st.button("🚀 여행지 3곳 추천받기"):
 
 
 if st.session_state.chat_open:
-    chat_container = st.container(border=True, key="cloud_chat_popup")
+    chat_container = st.container(border=False, key="cloud_chat_popup")
     with chat_container:
         st.markdown("### ☁️ 재추천 챗봇")
         st.caption("재추천은 물론, 마음에 드는 여행지의 일정·관광지도 원하는 스타일에 맞춰 추천해 드려요.")
