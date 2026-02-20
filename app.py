@@ -1535,6 +1535,7 @@ if st.session_state.chat_open:
         for message in st.session_state.chat_messages:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
+    st.markdown('</div>', unsafe_allow_html=True)
 
         user_feedback = st.text_input(
             "메시지 입력",
