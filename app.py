@@ -1368,7 +1368,7 @@ with st.sidebar:
     weather_api_key = st.text_input("OpenWeather API Key를 입력하세요", type="password")
     st.markdown("---")
     st.markdown("### 🌐 외부 정보 연동")
-    st.caption("대표 이미지/축제는 DuckDuckGo, 날씨는 OpenWeather API를 사용합니다.")
+    st.caption("대표 이미지는 Unsplash(보조: DuckDuckGo/Wikipedia), 검색 기반 요약은 DuckDuckGo, 날씨는 OpenWeather API를 사용합니다.")
 
     st.markdown("---")
     st.write("💡 **팁**")
