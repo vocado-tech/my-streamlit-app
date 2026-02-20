@@ -1473,14 +1473,15 @@ def render_kakao_share_copy_button(share_text: str):
                     background:#FEE500;
                     color:#191919;
                     border:none;
-                    border-radius:10px;
-                    padding:10px 14px;
+                    border-radius:8px;
+                    padding:8px 12px;
+                    font-size:15px;
                     font-weight:700;
                     cursor:pointer;
                 ">
                 📋 카카오톡 공유 텍스트 복사
             </button>
-            <p id="kakao-copy-status" style="margin-top:8px; font-size:14px;"></p>
+            <p id="kakao-copy-status" style="margin-top:6px; font-size:13px;"></p>
         </div>
         <script>
             const button = document.getElementById("kakao-copy-btn");
@@ -1497,7 +1498,7 @@ def render_kakao_share_copy_button(share_text: str):
             }});
         </script>
         """,
-        height=120,
+        height=96,
     )
 
 
@@ -1770,7 +1771,7 @@ if st.button("🚀 여행지 3곳 추천받기"):
                         st.link_button(f"✈️ {dest['name_kr']} 항공권 검색", flight_links["skyscanner"])
 
                 st.markdown("---")
-                st.markdown("### 🗳️ 친구들에게 투표받기")
+                st.markdown("#### 🗳️ 친구들에게 투표받기")
                 share_options = [f"{idx + 1}. {d['name_kr']}" for idx, d in enumerate(destinations[:3])]
                 share_text = (
                     "나 이번에 여행 가는데 어디가 좋을까? "
@@ -1779,7 +1780,7 @@ if st.button("🚀 여행지 3곳 추천받기"):
                 )
                 render_kakao_share_copy_button(share_text)
                 st.caption("예시: 나 이번에 여행 가는데 어디가 좋을까? 1. 몽골(별 쏟아짐) 2. 치앙마이(힐링) 3. 다낭(가성비) 투표 좀!")
-                st.text_area("공유 텍스트 미리보기", value=share_text, height=90)
+                st.text_area("공유 텍스트 미리보기", value=share_text, height=72)
 
             except Exception as e:
                 st.error(f"오류가 발생했습니다: {e}")
