@@ -343,8 +343,8 @@ st.markdown(
     <style>
     .cloud-chat-helper {
         position: fixed;
-        left: 16px;
-        top: 88px;
+        right: 16px;
+        bottom: 132px;
         z-index: 1001;
         background: #ffffff;
         color: #2f3e46;
@@ -358,7 +358,7 @@ st.markdown(
     .cloud-chat-helper::after {
         content: "";
         position: absolute;
-        left: 18px;
+        right: 18px;
         bottom: -8px;
         width: 14px;
         height: 14px;
@@ -369,8 +369,8 @@ st.markdown(
     }
     .st-key-cloud_chat_icon {
         position: fixed;
-        left: 16px;
-        top: 132px;
+        right: 16px;
+        bottom: 72px;
         z-index: 1000;
     }
     .st-key-cloud_chat_icon button {
@@ -381,6 +381,19 @@ st.markdown(
         font-size: 28px;
         border: 1px solid #cfd8dc;
         box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+    }
+    .st-key-cloud_chat_popup {
+        position: fixed;
+        right: 16px;
+        bottom: 128px;
+        width: min(380px, calc(100vw - 32px));
+        max-height: 70vh;
+        overflow-y: auto;
+        background: #ffffff;
+        border-radius: 16px;
+        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.2);
+        z-index: 999;
+        padding: 4px;
     }
     </style>
     """,
@@ -441,7 +454,7 @@ def get_followup_recommendations(api_key: str, user_message: str, destinations, 
 
 st.markdown('<div class="cloud-chat-helper">내가 도와줄게...</div>', unsafe_allow_html=True)
 
-if st.button("☁️", key="cloud_chat_icon", help="추천 재요청 챗봇 열기/닫기"):
+if st.button("☁️", key="cloud_chat_icon", help="재추천/일정 상담 챗봇 열기·닫기 (☁️ 버튼 클릭)"):
     st.session_state.chat_open = not st.session_state.chat_open
 
 
@@ -1251,6 +1264,7 @@ with st.sidebar:
     st.write("💡 **팁**")
     st.write("- **'일주일 이상'**을 선택해야 유럽/미주 등 장거리 추천이 나옵니다.")
     st.write("- **'모험가'**를 선택하면 더 이색적인 곳이 나옵니다.")
+    st.write("- 오른쪽 아래 **☁️ 버튼**을 누르면 재추천/일정 상담 챗봇이 열립니다.")
 
 # 3. 메인 화면 입력 (유지)
 st.markdown("### 📋 여행 스타일을 골라주세요")
@@ -1514,17 +1528,24 @@ if st.button("🚀 여행지 3곳 추천받기"):
 
 
 if st.session_state.chat_open:
-    st.markdown("### ☁️ 재추천 챗봇")
-    st.caption("재추천은 물론, 마음에 드는 여행지의 일정·관광지도 원하는 스타일에 맞춰 추천해 드려요.")
-
-    chat_container = st.container(border=True)
+    chat_container = st.container(border=True, key="cloud_chat_popup")
     with chat_container:
+        st.markdown("### ☁️ 재추천 챗봇")
+        st.caption("재추천은 물론, 마음에 드는 여행지의 일정·관광지도 원하는 스타일에 맞춰 추천해 드려요.")
         for message in st.session_state.chat_messages:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
 
-    user_feedback = st.chat_input("예: 재추천해줘 / 오사카 3박4일 일정 짜줘 / 비 오는 날 갈만한 관광지 추천해줘")
-    if user_feedback:
+        user_feedback = st.text_input(
+            "메시지 입력",
+            key="cloud_chat_input",
+            label_visibility="collapsed",
+            placeholder="예: 재추천해줘 / 오사카 3박4일 일정 짜줘 / 비 오는 날 갈만한 관광지 추천해줘",
+        )
+        send_clicked = st.button("전송", key="cloud_chat_send")
+
+    if send_clicked and user_feedback.strip():
+        user_feedback = user_feedback.strip()
         st.session_state.chat_messages.append({"role": "user", "content": user_feedback})
 
         profile_summary = (
@@ -1543,4 +1564,5 @@ if st.session_state.chat_open:
                 reply = f"재추천 중 오류가 발생했어요: {e}"
 
         st.session_state.chat_messages.append({"role": "assistant", "content": reply})
+        st.session_state.cloud_chat_input = ""
         st.rerun()
