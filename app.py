@@ -850,6 +850,77 @@ def _build_teleport_queries(destination_name: str):
     return city_name, queries
 
 
+def _build_teleport_pros_cons(city_name: str, category_scores: dict, quality_score):
+    """Teleport 점수를 바탕으로 여행자 관점의 장단점을 생성합니다."""
+    category_labels = {
+        "Safety": "치안",
+        "Cost of Living": "생활비",
+        "Housing": "숙소/주거비",
+        "Healthcare": "의료 접근성",
+        "Education": "교육/교양 인프라",
+        "Environmental Quality": "환경 쾌적성",
+        "Tolerance": "포용성",
+        "Taxation": "세금/가격 구조",
+        "Economy": "경제 활력",
+        "Leisure & Culture": "여가/문화",
+        "Commute": "이동/교통",
+    }
+
+    high_templates = {
+        "Safety": "밤 시간에도 주요 관광지 이동 동선의 심리적 부담이 상대적으로 낮아요.",
+        "Cost of Living": "식비·교통비 체감이 비교적 안정적이라 같은 예산으로 더 오래 머물기 좋아요.",
+        "Housing": "숙소 선택 폭이 넓은 편이라 일정 스타일에 맞춘 숙소 전략을 세우기 유리해요.",
+        "Healthcare": "여행 중 컨디션 이슈가 생겨도 의료 접근성 측면에서 상대적으로 안심할 수 있어요.",
+        "Environmental Quality": "공기·도시 환경 체감이 쾌적해 도보 위주 일정의 피로도가 덜한 편이에요.",
+        "Tolerance": "다양한 여행자에 익숙한 분위기라 혼행/커플/가족 모두 비교적 편하게 즐길 수 있어요.",
+        "Economy": "도시 전반의 활력이 좋아 상점·서비스 운영 시간대와 선택지가 풍부한 편이에요.",
+        "Leisure & Culture": "볼거리·즐길거리 밀도가 높아 짧은 일정에도 콘텐츠가 끊기지 않아요.",
+        "Commute": "대중교통 기반 이동 효율이 좋아 렌터카 없이도 동선 짜기 수월해요.",
+    }
+
+    low_templates = {
+        "Safety": "야간 외곽 이동이나 인적 드문 구간은 피하고, 귀가 동선은 미리 정해두는 게 좋아요.",
+        "Cost of Living": "외식·카페·교통비가 빠르게 누적될 수 있어 일일 예산 상한선을 정해두면 좋아요.",
+        "Housing": "성수기엔 숙소 가성비가 급격히 낮아질 수 있어 위치/가격 타협이 필요할 수 있어요.",
+        "Healthcare": "여행자 보험을 넉넉히 준비하고 상비약을 챙기면 리스크를 줄일 수 있어요.",
+        "Environmental Quality": "미세먼지·소음·혼잡 이슈가 있을 수 있어 일정 중 휴식 시간을 의도적으로 넣는 걸 추천해요.",
+        "Tolerance": "지역별 문화 차이를 존중하는 복장/에티켓을 사전에 확인하면 훨씬 편하게 여행할 수 있어요.",
+        "Taxation": "부가세·서비스 요금이 체감 물가를 높일 수 있어 결제 전 최종 금액 확인이 중요해요.",
+        "Economy": "지역/시간대에 따라 서비스 편차가 있을 수 있어 예약형 동선을 선호하는 편이 안전해요.",
+        "Leisure & Culture": "핵심 명소 외 선택지가 제한될 수 있어 사전 예약형 일정 구성이 특히 중요해요.",
+        "Commute": "출퇴근 혼잡/환승 변수로 이동 시간이 늘어날 수 있어 하루 방문지 수를 욕심내지 않는 게 좋아요.",
+    }
+
+    valid_scores = [(name, score) for name, score in category_scores.items() if isinstance(score, (int, float))]
+    if not valid_scores:
+        return ["✅ 데이터가 제한적이지만, 일정/예산만 맞추면 충분히 만족도 높은 여행을 만들 수 있어요."], []
+
+    top_categories = sorted(valid_scores, key=lambda item: item[1], reverse=True)[:3]
+    bottom_categories = sorted(valid_scores, key=lambda item: item[1])[:2]
+
+    pros = []
+    for key, score in top_categories:
+        if score >= 6.0:
+            label = category_labels.get(key, key)
+            insight = high_templates.get(key, "여행 만족도에 긍정적인 영향을 줄 가능성이 높아요.")
+            pros.append(f"✅ **{city_name}**의 **{label}** 지표가 **{score:.1f}/10**으로 강점이에요. {insight}")
+
+    if isinstance(quality_score, (int, float)) and quality_score >= 60:
+        pros.append(f"✅ Teleport 종합 점수도 **{quality_score:.1f}/100**으로, 첫 방문자도 무난하게 즐길 가능성이 높아요.")
+
+    if not pros:
+        pros.append("✅ 핵심 지표가 전반적으로 평균권이라, 일정 난이도와 예산을 맞추면 안정적으로 즐길 수 있어요.")
+
+    cons = []
+    for key, score in bottom_categories:
+        if score <= 5.5:
+            label = category_labels.get(key, key)
+            caution = low_templates.get(key, "여행 전에 관련 리스크를 미리 확인하면 좋아요.")
+            cons.append(f"⚠️ **{city_name}**의 **{label}** 지표는 **{score:.1f}/10**으로 약점 구간이에요. {caution}")
+
+    return pros, cons
+
+
 @st.cache_data(show_spinner=False, ttl=60 * 60 * 12)
 def get_teleport_city_insights(destination_name: str):
     """Teleport API로 도시 생활 인사이트(생활비/안전/삶의 질/요약/사진)를 가져옵니다."""
@@ -895,37 +966,38 @@ def get_teleport_city_insights(destination_name: str):
         images_res.raise_for_status()
         images_data = images_res.json()
 
-        categories = {item.get("name"): item.get("score_out_of_10", 0) * 10 for item in scores_data.get("categories", [])}
+        categories = {
+            item.get("name"): round(item.get("score_out_of_10", 0), 1)
+            for item in scores_data.get("categories", [])
+            if item.get("name")
+        }
 
         summary = _strip_html_tags(scores_data.get("summary", "요약 정보가 없습니다."))
         image_url = images_data.get("photos", [{}])[0].get("image", {}).get("web")
 
-        cost_score = categories.get("Cost of Living")
-        safety_score = categories.get("Safety")
         quality_score = scores_data.get("teleport_city_score")
-        if isinstance(quality_score, (int, float)) and quality_score <= 10:
-            quality_score *= 10
+        pros, cons = _build_teleport_pros_cons(resolved_city_name, categories, quality_score)
 
-        pros = []
-        if safety_score and safety_score >= 60:
-            pros.append("✅ 안전도 점수가 높은 편이라 늦은 시간 이동 부담이 비교적 적습니다.")
-        if cost_score and cost_score >= 55:
-            pros.append("✅ 생활비 점수가 좋아 장기 체류 시 예산 관리에 유리한 편입니다.")
-        if quality_score and quality_score >= 60:
-            pros.append("✅ 주거/도시 인프라 점수가 높아 생활 편의성이 좋은 편입니다.")
-
-        if not pros:
-            pros.append("✅ 핵심 지표는 평이한 수준으로, 일정과 예산만 맞추면 무난하게 즐기기 좋은 도시입니다.")
+        category_rank = sorted(
+            [(name, score) for name, score in categories.items() if isinstance(score, (int, float))],
+            key=lambda item: item[1],
+            reverse=True,
+        )
+        top_categories = category_rank[:3]
+        bottom_categories = sorted(category_rank, key=lambda item: item[1])[:2]
 
         return {
             "city_name": resolved_city_name,
             "summary": summary,
-            "cost_score": cost_score,
-            "safety_score": safety_score,
             "quality_score": quality_score,
+            "categories": categories,
+            "top_categories": top_categories,
+            "bottom_categories": bottom_categories,
             "image_url": image_url,
+            "teleport_url": scores_data.get("teleport_city_url"),
             "source": urban_area_href,
             "pros": pros,
+            "cons": cons,
         }
     except Exception:
         return None
@@ -1681,6 +1753,24 @@ if st.button("🚀 여행지 3곳 추천받기"):
 
                         st.info(f"💡 **추천 이유**: {dest['reason']}")
 
+                        if teleport_insight:
+                            with st.expander("🛰️ Teleport 도시 인사이트", expanded=False):
+                                if teleport_insight.get("summary"):
+                                    st.markdown(f"**도시 한줄 요약**: {teleport_insight['summary']}")
+
+                                top_categories = teleport_insight.get("top_categories", [])
+                                bottom_categories = teleport_insight.get("bottom_categories", [])
+                                if top_categories or bottom_categories:
+                                    category_rows = []
+                                    for category_name, score in top_categories:
+                                        category_rows.append({"구분": "강점", "지표": category_name, "점수(0~10)": score})
+                                    for category_name, score in bottom_categories:
+                                        category_rows.append({"구분": "유의", "지표": category_name, "점수(0~10)": score})
+                                    st.dataframe(pd.DataFrame(category_rows), hide_index=True, use_container_width=True)
+
+                                if teleport_insight.get("teleport_url"):
+                                    st.link_button("🔗 Teleport 도시 프로필 보기", teleport_insight["teleport_url"])
+
                         regret_risk_warnings = get_regret_risk_warnings(style, dest['name_kr'], dest['reason'])
                         weather_summary = get_weather_summary(dest['latitude'], dest['longitude'], weather_api_key)
                         seasonal_note = get_seasonal_travel_note(dest['name_kr'], dest['latitude'], travel_dates)
@@ -1710,12 +1800,17 @@ if st.button("🚀 여행지 3곳 추천받기"):
                             for warning_message in regret_risk_warnings:
                                 st.warning(warning_message)
 
-                            st.markdown("#### 🌟 그래도 좋은 점")
+                            st.markdown("#### 🌟 Teleport 기반 장점")
                             if teleport_insight:
                                 for pro_text in teleport_insight.get("pros", []):
                                     st.success(pro_text)
                             else:
                                 st.success("✅ 단점이 있더라도 일정 난이도·예산만 맞추면 충분히 만족도 높은 여행이 될 수 있어요.")
+
+                            if teleport_insight and teleport_insight.get("cons"):
+                                st.markdown("#### ⚠️ Teleport 기반 단점/주의점")
+                                for con_text in teleport_insight.get("cons", []):
+                                    st.warning(con_text)
 
                         with st.expander("🌤️ 날씨 자세히", expanded=False):
                             st.write(weather_summary)
