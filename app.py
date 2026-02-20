@@ -722,80 +722,8 @@ def build_flight_search_links(destination_name: str, airport_code: str, travel_d
 
 
 @st.cache_data(show_spinner=False, ttl=60 * 30)
-def _fetch_amadeus_access_token(amadeus_client_id: str, amadeus_client_secret: str):
-    """Amadeus OAuth 토큰을 발급합니다."""
-    token_res = requests.post(
-        "https://test.api.amadeus.com/v1/security/oauth2/token",
-        data={
-            "grant_type": "client_credentials",
-            "client_id": amadeus_client_id,
-            "client_secret": amadeus_client_secret,
-        },
-        timeout=12,
-    )
-    token_res.raise_for_status()
-    return token_res.json().get("access_token")
-
-
-@st.cache_data(show_spinner=False, ttl=60 * 30)
-def get_live_flight_price_from_amadeus(airport_code: str, travel_dates, amadeus_client_id: str, amadeus_client_secret: str):
-    """Amadeus Flight Offers Search로 실시간 운임(대략)을 조회합니다."""
-    if not amadeus_client_id or not amadeus_client_secret:
-        return None
-
-    start_date, end_date = _resolve_travel_date_range(travel_dates)
-
-    # 왕복 기준으로 대략적인 가격 범위를 조회합니다 (성인 1인).
-    params = {
-        "originLocationCode": "ICN",
-        "destinationLocationCode": airport_code.upper(),
-        "departureDate": start_date.isoformat(),
-        "returnDate": end_date.isoformat(),
-        "adults": 1,
-        "currencyCode": "KRW",
-        "max": 5,
-    }
-
-    try:
-        access_token = _fetch_amadeus_access_token(amadeus_client_id, amadeus_client_secret)
-        offers_res = requests.get(
-            "https://test.api.amadeus.com/v2/shopping/flight-offers",
-            headers={"Authorization": f"Bearer {access_token}"},
-            params=params,
-            timeout=14,
-        )
-        offers_res.raise_for_status()
-        offers = offers_res.json().get("data", [])
-
-        prices = []
-        currency = "KRW"
-        for offer in offers:
-            price = offer.get("price", {})
-            currency = price.get("currency", currency)
-            total = price.get("total")
-            try:
-                prices.append(float(total))
-            except (TypeError, ValueError):
-                continue
-
-        if not prices:
-            return None
-
-        min_price = int(min(prices))
-        max_price = int(max(prices))
-        return {
-            "min_price": min_price,
-            "max_price": max_price,
-            "currency": currency,
-            "source": "https://developers.amadeus.com/self-service/category/flights/api-doc/flight-offers-search",
-        }
-    except Exception:
-        return None
-
-
-@st.cache_data(show_spinner=False, ttl=60 * 60 * 12)
-def get_flight_price_signal(destination_name: str, airport_code: str, travel_dates, amadeus_client_id: str = "", amadeus_client_secret: str = ""):
-    """Skyscanner 검색 단서 + (선택) Amadeus 실시간 운임으로 가격 체감을 안내합니다."""
+def get_flight_price_signal(destination_name: str, airport_code: str, travel_dates):
+    """Skyscanner 검색 단서로 항공권 가격 체감을 안내합니다."""
     months = _get_trip_months(travel_dates)
     month_text = ", ".join([f"{month}월" for month in months])
     search_query = (
@@ -853,24 +781,12 @@ def get_flight_price_signal(destination_name: str, airport_code: str, travel_dat
             emoji = "🟡"
             reason = "Skyscanner 연관 검색 단서가 혼재되어 중립 구간으로 판단했습니다."
 
-        live_fare = get_live_flight_price_from_amadeus(
-            airport_code,
-            travel_dates,
-            amadeus_client_id,
-            amadeus_client_secret,
-        )
-        if live_fare:
-            reason += (
-                f" / Amadeus 실시간 운임 기준 약 {live_fare['min_price']:,}~{live_fare['max_price']:,}"
-                f" {live_fare['currency']} 범위로 조회되었습니다."
-            )
-
         first_source = items[0].get("href") if items else None
         return {
             "label": label,
             "emoji": emoji,
             "reason": reason,
-            "source": live_fare["source"] if live_fare else (first_source or source),
+            "source": first_source or source,
         }
     except Exception as exc:
         return {
@@ -879,6 +795,86 @@ def get_flight_price_signal(destination_name: str, airport_code: str, travel_dat
             "reason": f"가격 검색을 불러오지 못했습니다: {exc}",
             "source": source,
         }
+
+
+def _strip_html_tags(raw_html: str):
+    return re.sub(r"<[^>]+>", "", raw_html or "").strip()
+
+
+def _format_teleport_score(score):
+    if isinstance(score, (int, float)):
+        return f"{score:.1f}/100"
+    return "데이터 없음"
+
+
+@st.cache_data(show_spinner=False, ttl=60 * 60 * 12)
+def get_teleport_city_insights(destination_name: str):
+    """Teleport API로 도시 생활 인사이트(생활비/안전/삶의 질/요약/사진)를 가져옵니다."""
+    city_name = destination_name.split("(")[0].strip()
+    search_url = "https://api.teleport.org/api/cities/"
+
+    try:
+        search_res = requests.get(search_url, params={"search": city_name, "limit": 1}, timeout=12)
+        search_res.raise_for_status()
+        search_data = search_res.json()
+
+        city_results = search_data.get("_embedded", {}).get("city:search-results", [])
+        if not city_results:
+            return None
+
+        city_href = city_results[0].get("_links", {}).get("city:item", {}).get("href")
+        if not city_href:
+            return None
+
+        city_detail_res = requests.get(city_href, timeout=12)
+        city_detail_res.raise_for_status()
+        city_detail = city_detail_res.json()
+        urban_area_href = city_detail.get("_links", {}).get("city:urban_area", {}).get("href")
+        if not urban_area_href:
+            return None
+
+        scores_res = requests.get(f"{urban_area_href}scores/", timeout=12)
+        scores_res.raise_for_status()
+        scores_data = scores_res.json()
+
+        images_res = requests.get(f"{urban_area_href}images/", timeout=12)
+        images_res.raise_for_status()
+        images_data = images_res.json()
+
+        categories = {item.get("name"): item.get("score_out_of_10", 0) * 10 for item in scores_data.get("categories", [])}
+
+        summary = _strip_html_tags(scores_data.get("summary", "요약 정보가 없습니다."))
+        image_url = images_data.get("photos", [{}])[0].get("image", {}).get("web")
+
+        cost_score = categories.get("Cost of Living")
+        safety_score = categories.get("Safety")
+        quality_score = scores_data.get("teleport_city_score")
+        if isinstance(quality_score, (int, float)) and quality_score <= 10:
+            quality_score *= 10
+
+        pros = []
+        if safety_score and safety_score >= 60:
+            pros.append("✅ 안전도 점수가 높은 편이라 늦은 시간 이동 부담이 비교적 적습니다.")
+        if cost_score and cost_score >= 55:
+            pros.append("✅ 생활비 점수가 좋아 장기 체류 시 예산 관리에 유리한 편입니다.")
+        if quality_score and quality_score >= 60:
+            pros.append("✅ 주거/도시 인프라 점수가 높아 생활 편의성이 좋은 편입니다.")
+
+        if not pros:
+            pros.append("✅ 핵심 지표는 평이한 수준으로, 일정과 예산만 맞추면 무난하게 즐기기 좋은 도시입니다.")
+
+        return {
+            "city_name": city_name,
+            "summary": summary,
+            "cost_score": cost_score,
+            "safety_score": safety_score,
+            "quality_score": quality_score,
+            "image_url": image_url,
+            "source": urban_area_href,
+            "pros": pros,
+        }
+    except Exception:
+        return None
 
 
 def get_weather_summary(latitude: float, longitude: float, weather_api_key: str):
@@ -1455,12 +1451,10 @@ def render_kakao_share_copy_button(share_text: str):
 with st.sidebar:
     api_key = st.text_input("OpenAI API Key를 입력하세요", type="password")
     weather_api_key = st.text_input("OpenWeather API Key를 입력하세요", type="password")
-    amadeus_client_id = st.text_input("Amadeus Client ID (선택)", type="password")
-    amadeus_client_secret = st.text_input("Amadeus Client Secret (선택)", type="password")
     st.markdown("---")
     st.markdown("### 🌐 외부 정보 연동")
     st.caption("대표 이미지는 Unsplash(보조: DuckDuckGo/Wikipedia), 검색 기반 요약은 DuckDuckGo, 날씨는 OpenWeather API를 사용합니다.")
-    st.caption("항공권은 기본적으로 Skyscanner 연관 검색으로 가격 체감을 추정하고, Amadeus 키를 입력하면 공식 실시간 운임 조회를 함께 반영합니다.")
+    st.caption("항공권은 Skyscanner 링크와 연관 검색 단서를 기반으로 가격 체감을 안내합니다.")
 
     st.markdown("---")
     st.write("💡 **팁**")
@@ -1606,6 +1600,7 @@ if st.button("🚀 여행지 3곳 추천받기"):
 
                         image_url, image_error = get_landmark_image(dest['name_kr'])
                         food_name, food_image_url, food_image_error = get_representative_food(dest['name_kr'])
+                        teleport_insight = get_teleport_city_insights(dest['name_kr'])
 
                         st.markdown("#### 🖼️ 여행지/먹거리 미리보기")
                         image_col, food_col = st.columns(2)
@@ -1661,13 +1656,42 @@ if st.button("🚀 여행지 3곳 추천받기"):
                             for warning_message in regret_risk_warnings:
                                 st.warning(warning_message)
 
+                            st.markdown("#### 🌟 그래도 좋은 점")
+                            if teleport_insight:
+                                for pro_text in teleport_insight.get("pros", []):
+                                    st.success(pro_text)
+                            else:
+                                st.success("✅ 단점이 있더라도 일정 난이도·예산만 맞추면 충분히 만족도 높은 여행이 될 수 있어요.")
+
                         with st.expander("🌤️ 날씨 자세히", expanded=False):
                             st.write(weather_summary)
                             st.markdown("#### 🌦️ 여행 기간 기후/시기 적합성")
                             st.markdown(seasonal_note)
 
+                        with st.expander("🟢 Teleport API (추천 🔥)", expanded=False):
+                            st.caption("무료 + 인증 필요 없음")
+                            if teleport_insight:
+                                tcol1, tcol2, tcol3 = st.columns(3)
+                                with tcol1:
+                                    st.metric("도시 생활비", _format_teleport_score(teleport_insight.get('cost_score')))
+                                with tcol2:
+                                    st.metric("안전도", _format_teleport_score(teleport_insight.get('safety_score')))
+                                with tcol3:
+                                    st.metric("삶의 질", _format_teleport_score(teleport_insight.get('quality_score')))
+
+                                st.markdown("#### 요약 정보")
+                                st.write(teleport_insight.get("summary", "요약 정보가 없습니다."))
+
+                                st.markdown("#### 도시 사진")
+                                if teleport_insight.get("image_url"):
+                                    st.image(teleport_insight["image_url"], caption=f"{teleport_insight['city_name']} (Teleport)", use_container_width=True)
+                                if teleport_insight.get("source"):
+                                    st.link_button("🔗 Teleport 원문 보기", teleport_insight["source"])
+                            else:
+                                st.info("Teleport 도시 데이터를 찾지 못했어요. (도시명이 Teleport DB와 다를 수 있습니다)")
+
                         flight_links = build_flight_search_links(dest['name_kr'], dest['airport_code'], travel_dates)
-                        price_signal = get_flight_price_signal(dest['name_kr'], dest['airport_code'], travel_dates, amadeus_client_id, amadeus_client_secret)
+                        price_signal = get_flight_price_signal(dest['name_kr'], dest['airport_code'], travel_dates)
 
                         with st.expander("🛂 비자/입국 조건", expanded=False):
                             st.markdown(
