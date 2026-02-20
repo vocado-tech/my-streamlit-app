@@ -517,7 +517,6 @@ def _get_trip_months(travel_dates):
 
 def get_seasonal_travel_note(destination_name: str, latitude: float, travel_dates):
     """여행 기간 평균 기후와 우기/태풍 시즌 경고를 반환합니다."""
-    country = extract_country_from_destination(destination_name)
     zone = COUNTRY_CLIMATE_ZONE.get(country)
 
     if not zone:
@@ -806,6 +805,7 @@ def extract_country_from_destination(name_kr: str):
 def get_regret_risk_warnings(style: str, destination_name: str, reason_text: str):
     """여행 스타일 미스매치 + 목적지의 보편적 리스크를 후회 가능성 경고로 반환합니다."""
     text = f"{destination_name} {reason_text}".lower()
+    city = destination_name.split("(")[0].strip()
     destination_traits = {
         "쇼핑/도시": ["쇼핑", "야경", "도시", "몰", "백화점", "city", "nightlife"],
         "휴양/바다": ["휴양", "리조트", "해변", "바다", "비치", "beach"],
@@ -850,6 +850,41 @@ def get_regret_risk_warnings(style: str, destination_name: str, reason_text: str
         },
     ]
 
+    distance_risk_rules = [
+        {
+            "keywords": ["미국", "캐나다", "영국", "프랑스", "독일", "스페인", "포르투갈", "이탈리아", "아이슬란드"],
+            "message": "⚠️ 장거리 노선은 비행시간이 길고 시차 적응이 필요해, 실제 관광 가능한 시간이 예상보다 줄 수 있어요.",
+        },
+        {
+            "keywords": ["이집트", "크로아티아", "포르투갈", "핀란드", "체코", "헝가리", "오스트리아", "노르웨이"],
+            "message": "⚠️ 출발일/도시 조합에 따라 직항이 없거나 좌석이 적어 경유 대기시간이 길어질 수 있어요.",
+        },
+    ]
+
+    local_adaptation_rules = [
+        {
+            "keywords": ["인도", "이집트", "몽골", "라오스", "베트남", "태국"],
+            "message": "⚠️ 향신료·조리 방식·수질 차이로 음식이 낯설 수 있어 첫날은 무난한 메뉴로 적응하는 편이 안전해요.",
+        },
+        {
+            "keywords": ["두바이", "아랍에미리트", "카이로", "울란바토르"],
+            "message": "⚠️ 기온 편차(한낮 고온/야간 저온)나 건조한 공기로 컨디션이 흔들릴 수 있어 복장/보습 대비가 필요해요.",
+        },
+        {
+            "keywords": ["런던", "암스테르담", "아이슬란드", "뉴질랜드"],
+            "message": "⚠️ 날씨 변동 폭이 큰 지역이라 같은 날에도 비·바람이 반복될 수 있어 실내 대안 동선을 준비해 두세요.",
+        },
+    ]
+
+    city_specific_risks = {
+        "뉴욕": "⚠️ 맨해튼 중심 숙소/교통비가 높아 보이는 예산보다 현지 지출이 빠르게 커질 수 있어요.",
+        "파리": "⚠️ 주요 관광지는 대기줄이 길어 사전 예약이 없으면 하루 동선이 크게 밀릴 수 있어요.",
+        "런던": "⚠️ 지하철 파업·공사 이슈가 간헐적으로 있어 이동 동선 플랜B를 준비하는 것이 좋아요.",
+        "방콕": "⚠️ 출퇴근 시간대 교통체증이 심해, 지도상 거리보다 이동시간이 2배 이상 걸릴 수 있어요.",
+        "도쿄": "⚠️ 러시아워 전철 혼잡도가 높아 캐리어 이동은 피크 시간을 피하는 편이 좋아요.",
+        "로마": "⚠️ 인기 유적지는 휴관일·예약 슬롯 변동이 잦아 일정 확정 전에 운영시간 재확인이 필요해요.",
+    }
+
     detected_traits = {
         trait
         for trait, keywords in destination_traits.items()
@@ -866,6 +901,32 @@ def get_regret_risk_warnings(style: str, destination_name: str, reason_text: str
         if any(keyword.lower() in text for keyword in rule["keywords"]):
             if rule["message"] not in warnings:
                 warnings.append(rule["message"])
+
+    for rule in distance_risk_rules:
+        if any(keyword.lower() in text for keyword in rule["keywords"]):
+            if rule["message"] not in warnings:
+                warnings.append(rule["message"])
+
+    for rule in local_adaptation_rules:
+        if any(keyword.lower() in text for keyword in rule["keywords"]):
+            if rule["message"] not in warnings:
+                warnings.append(rule["message"])
+
+    for keyword, message in city_specific_risks.items():
+        if keyword in city and message not in warnings:
+            warnings.append(message)
+
+    fallback_messages = [
+        "⚠️ 성수기에는 항공권·숙소 가격이 급등해 같은 예산으로 체감 퀄리티가 낮아질 수 있어요.",
+        "⚠️ 관광지 오픈시간/휴무일이 수시로 바뀌므로 핵심 스팟은 공식 사이트에서 재확인하세요.",
+        "⚠️ 현지 교통 파업·행사·우천 변수로 당일 동선이 바뀔 수 있어 대체 코스를 미리 정해두는 게 좋아요.",
+    ]
+
+    for message in fallback_messages:
+        if len(warnings) >= 3:
+            break
+        if message not in warnings:
+            warnings.append(message)
 
     return warnings
 
@@ -971,7 +1032,6 @@ def _summarize_entry_requirement_from_search(country: str):
 
 def get_entry_requirement_for_korean_passport(destination_name: str):
     """대한민국 여권 기준 비자/입국 요건을 반환합니다."""
-    country = extract_country_from_destination(destination_name)
     requirement = ENTRY_REQUIREMENTS_BY_COUNTRY.get(country)
 
     if requirement:
