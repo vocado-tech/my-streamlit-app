@@ -782,18 +782,68 @@ def get_destination_bgm(name_kr: str):
         "몽골": ("몽골 전통/초원 무드 사운드", "https://www.youtube.com/watch?v=9e9v4M9RjvY"),
     }
 
+    fallback_candidates = [
+        ("잔잔한 여행 로파이 라이브", "https://www.youtube.com/watch?v=jfKfPfyJRdk"),
+        ("여행 브이로그용 감성 BGM 모음", "https://www.youtube.com/watch?v=DWcJFNfaw9c"),
+    ]
+
     for keyword, bgm_info in city_bgm_map.items():
         if keyword in city:
-            return bgm_info
+            return pick_available_bgm([bgm_info], f"{city} travel bgm playlist")
 
     for keyword, bgm_info in country_bgm_map.items():
         if keyword in country:
-            return bgm_info
+            return pick_available_bgm([bgm_info], f"{country} travel bgm playlist")
 
-    return (
-        f"{country} 여행 분위기에 어울리는 로컬/무드 음악",
-        "https://www.youtube.com/watch?v=2OEL4P1Rz04",
+    return pick_available_bgm(
+        [
+            (f"{country} 여행 분위기에 어울리는 로컬/무드 음악", "https://www.youtube.com/watch?v=2OEL4P1Rz04"),
+            *fallback_candidates,
+        ],
+        f"{country} travel bgm playlist",
     )
+
+
+@st.cache_data(ttl=3600)
+def is_youtube_video_available(url: str):
+    """YouTube oEmbed 응답으로 재생 가능한 영상인지 확인합니다."""
+    try:
+        response = requests.get(
+            "https://www.youtube.com/oembed",
+            params={"url": url, "format": "json"},
+            timeout=4,
+        )
+        return response.status_code == 200
+    except Exception:
+        return False
+
+
+def pick_available_bgm(candidates, search_query: str):
+    """후보 링크 중 재생 가능한 BGM을 우선 선택하고, 없으면 검색 결과에서 대체합니다."""
+    for title, url in candidates:
+        if is_youtube_video_available(url):
+            return title, url
+
+    try:
+        with DDGS() as ddgs:
+            items = list(
+                ddgs.text(
+                    keywords=f"site:youtube.com {search_query}",
+                    region="wt-wt",
+                    safesearch="moderate",
+                    max_results=8,
+                )
+            )
+
+        for item in items:
+            title = item.get("title", "추천 BGM")
+            href = item.get("href", "")
+            if "youtube.com/watch" in href and is_youtube_video_available(href):
+                return f"{title} (자동 추천)", href
+    except Exception:
+        pass
+
+    return "재생 가능한 BGM을 찾지 못해 기본 라이브를 대신 재생합니다", "https://www.youtube.com/watch?v=jfKfPfyJRdk"
 
 
 def extract_country_from_destination(name_kr: str):
