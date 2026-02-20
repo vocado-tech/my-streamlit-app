@@ -817,90 +817,8 @@ def build_flight_search_links(destination_name: str, airport_code: str, travel_d
     }
 
 
-@st.cache_data(show_spinner=False, ttl=60 * 30)
-def get_flight_price_signal(destination_name: str, airport_code: str, travel_dates):
-    """Skyscanner 검색 단서로 항공권 가격 체감을 안내합니다."""
-    months = _get_trip_months(travel_dates)
-    month_text = ", ".join([f"{month}월" for month in months])
-    search_query = (
-        f"site:skyscanner.co.kr {destination_name} {month_text} "
-        "항공권 가장 저렴한 달 성수기 비수기"
-    )
-
-    expensive_keywords = ["성수기", "비싸", "요금 상승", "가격 상승", "급등", "peak season", "high season"]
-    cheap_keywords = ["비수기", "저렴", "특가", "할인", "가격 하락", "가장 저렴", "off-season", "low season"]
-
-    score = 0
-    source = f"https://duckduckgo.com/?q={quote_plus(search_query)}"
-
-    try:
-        with DDGS() as ddgs:
-            all_items = list(
-                ddgs.text(
-                    keywords=search_query,
-                    region="kr-kr",
-                    safesearch="moderate",
-                    max_results=12,
-                )
-            )
-
-        items = [
-            item for item in all_items
-            if "skyscanner" in (item.get("href", "") + item.get("title", "")).lower()
-        ]
-
-        if not items:
-            return {
-                "label": "보통 수준으로 추정",
-                "emoji": "🟡",
-                "reason": "Skyscanner 기반 단서를 충분히 찾지 못해 중립으로 안내합니다.",
-                "source": source,
-            }
-
-        blob = " ".join([(item.get("title", "") + " " + item.get("body", "")).lower() for item in items])
-
-        for keyword in expensive_keywords:
-            score += len(re.findall(re.escape(keyword.lower()), blob))
-        for keyword in cheap_keywords:
-            score -= len(re.findall(re.escape(keyword.lower()), blob))
-
-        if score >= 2:
-            label = "평소보다 비싼 편"
-            emoji = "🔺"
-            reason = "Skyscanner 연관 검색에서 성수기/요금상승 표현이 더 많이 감지되었습니다."
-        elif score <= -2:
-            label = "평소보다 저렴한 편"
-            emoji = "🔻"
-            reason = "Skyscanner 연관 검색에서 비수기/할인 표현이 더 많이 감지되었습니다."
-        else:
-            label = "보통 수준으로 추정"
-            emoji = "🟡"
-            reason = "Skyscanner 연관 검색 단서가 혼재되어 중립 구간으로 판단했습니다."
-
-        first_source = items[0].get("href") if items else None
-        return {
-            "label": label,
-            "emoji": emoji,
-            "reason": reason,
-            "source": first_source or source,
-        }
-    except Exception as exc:
-        return {
-            "label": "판단 불가",
-            "emoji": "⚪",
-            "reason": f"가격 검색을 불러오지 못했습니다: {exc}",
-            "source": source,
-        }
-
-
 def _strip_html_tags(raw_html: str):
     return re.sub(r"<[^>]+>", "", raw_html or "").strip()
-
-
-def _format_teleport_score(score):
-    if isinstance(score, (int, float)):
-        return f"{score:.1f}/100"
-    return "데이터 없음"
 
 
 def _extract_city_country(destination_name: str):
@@ -1590,7 +1508,6 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 🌐 외부 정보 연동")
     st.caption("대표 이미지는 Unsplash(보조: DuckDuckGo/Wikipedia), 검색 기반 요약은 DuckDuckGo, 날씨는 OpenWeather API를 사용합니다.")
-    st.caption("항공권은 Skyscanner 링크와 연관 검색 단서를 기반으로 가격 체감을 안내합니다.")
 
     st.markdown("---")
     st.write("💡 **팁**")
@@ -1626,7 +1543,7 @@ travel_dates = st.date_input(
     "여행 날짜 (선택)",
     value=(today, today),
     min_value=today,
-    help="오늘 이후 일정만 선택할 수 있어요. 선택한 기간 기준으로 평균 기온/강수량과 우기·태풍 정보, 그리고 Skyscanner 연관 검색 기반 항공권 가격(평소 대비 비쌈/저렴 추정)도 함께 안내합니다.",
+    help="오늘 이후 일정만 선택할 수 있어요. 선택한 기간 기준으로 평균 기온/강수량과 우기·태풍 정보를 함께 안내합니다.",
 )
 
 etc_req = st.text_input("특별 요청 (예: 사막이 보고 싶어요, 미술관 투어 원함)")
@@ -1804,30 +1721,7 @@ if st.button("🚀 여행지 3곳 추천받기"):
                             st.markdown("#### 🌦️ 여행 기간 기후/시기 적합성")
                             st.markdown(seasonal_note)
 
-                        with st.expander("🟢 Teleport API (추천 🔥)", expanded=False):
-                            st.caption("무료 + 인증 필요 없음")
-                            if teleport_insight:
-                                tcol1, tcol2, tcol3 = st.columns(3)
-                                with tcol1:
-                                    st.metric("도시 생활비", _format_teleport_score(teleport_insight.get('cost_score')))
-                                with tcol2:
-                                    st.metric("안전도", _format_teleport_score(teleport_insight.get('safety_score')))
-                                with tcol3:
-                                    st.metric("삶의 질", _format_teleport_score(teleport_insight.get('quality_score')))
-
-                                st.markdown("#### 요약 정보")
-                                st.write(teleport_insight.get("summary", "요약 정보가 없습니다."))
-
-                                st.markdown("#### 도시 사진")
-                                if teleport_insight.get("image_url"):
-                                    st.image(teleport_insight["image_url"], caption=f"{teleport_insight['city_name']} (Teleport)", use_container_width=True)
-                                if teleport_insight.get("source"):
-                                    st.link_button("🔗 Teleport 원문 보기", teleport_insight["source"])
-                            else:
-                                st.info("Teleport 도시 데이터를 찾지 못했어요. (도시명이 Teleport DB와 다를 수 있습니다)")
-
                         flight_links = build_flight_search_links(dest['name_kr'], dest['airport_code'], travel_dates)
-                        price_signal = get_flight_price_signal(dest['name_kr'], dest['airport_code'], travel_dates)
 
                         with st.expander("🛂 비자/입국 조건", expanded=False):
                             st.markdown(
@@ -1874,9 +1768,6 @@ if st.button("🚀 여행지 3곳 추천받기"):
 
                         st.markdown("---")
                         st.link_button(f"✈️ {dest['name_kr']} 항공권 검색", flight_links["skyscanner"])
-                        st.caption(f"{price_signal['emoji']} {price_signal['label']} · {price_signal['reason']}")
-                        if price_signal.get("source"):
-                            st.caption(f"참고: {price_signal['source']}")
 
                 st.markdown("---")
                 st.markdown("### 🗳️ 친구들에게 투표받기")
