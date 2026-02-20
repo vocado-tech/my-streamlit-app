@@ -1840,18 +1840,22 @@ if st.button("🚀 여행지 3곳 추천받기"):
                         map_data = pd.DataFrame({'lat': [dest['latitude']], 'lon': [dest['longitude']]})
                         st.map(map_data, zoom=4)
 
-                        landmark_images = get_landmark_images(dest['name_kr'], limit=3)
+                        landmark_images = get_landmark_images(dest['name_kr'], limit=6)
                         teleport_insight = get_teleport_city_insights(dest['name_kr'])
 
                         if landmark_images:
                             st.markdown("#### 🖼️ 여행지 대표 이미지")
-                            image_cols = st.columns(len(landmark_images))
-                            for idx, image_url in enumerate(landmark_images):
-                                with image_cols[idx]:
-                                    st.image(
+                            images_per_row = 3 if len(landmark_images) >= 3 else 2
+                            for start_idx in range(0, len(landmark_images), images_per_row):
+                                row_images = landmark_images[start_idx:start_idx + images_per_row]
+                                image_cols = st.columns(images_per_row)
+                                for idx, image_url in enumerate(row_images):
+                                    image_number = start_idx + idx + 1
+                                    with image_cols[idx]:
+                                        st.image(
                                         image_url,
-                                        caption=f"{dest['name_kr']} 대표 이미지 {idx + 1}",
-                                        use_container_width=True,
+                                        caption=f"{dest['name_kr']} 대표 이미지 {image_number}",
+                                        width=180,
                                     )
 
                         st.info(f"💡 **추천 이유**: {dest['reason']}")
@@ -1955,18 +1959,15 @@ if st.button("🚀 여행지 3곳 추천받기"):
                                 else:
                                     st.write(itinerary_items)
 
-                                st.markdown("#### 🍽️ 추천 음식 / 로컬 푸드")
                                 local_foods = get_local_food_recommendations(dest['name_kr'])
                                 if local_foods:
-                                    for meal in local_foods[:3]:
-                                        st.markdown(f"**{meal['name']}**")
-                                        if meal.get("image"):
-                                            st.image(meal["image"], width=200)
-                                        if meal.get("recipe"):
-                                            recipe_preview = meal["recipe"][:180].strip()
-                                            if len(meal["recipe"]) > 180:
-                                                recipe_preview += "..."
-                                            st.caption(f"레시피 요약: {recipe_preview}")
+                                    st.markdown("#### 🍽️ 추천 음식 / 로컬 푸드")
+                                    meal_cols = st.columns(min(3, len(local_foods)))
+                                    for idx, meal in enumerate(local_foods[:3]):
+                                        with meal_cols[idx]:
+                                            st.markdown(f"**{meal['name']}**")
+                                            if meal.get("image"):
+                                                st.image(meal["image"], width=160)
 
                             with col_b:
                                 st.markdown("#### 💰 예상 예산")
@@ -1990,7 +1991,6 @@ if st.button("🚀 여행지 3곳 추천받기"):
                     + " 투표 좀!"
                 )
                 render_kakao_share_copy_button(share_text)
-                st.caption("예시: 나 이번에 여행 가는데 어디가 좋을까? 1. 몽골(별 쏟아짐) 2. 치앙마이(힐링) 3. 다낭(가성비) 투표 좀!")
                 st.text_area("공유 텍스트 미리보기", value=share_text, height=72)
 
             except Exception as e:
