@@ -341,10 +341,36 @@ st.subheader("여행 가자 ^~^")
 st.markdown(
     """
     <style>
+    .cloud-chat-helper {
+        position: fixed;
+        left: 16px;
+        top: 88px;
+        z-index: 1001;
+        background: #ffffff;
+        color: #2f3e46;
+        border: 1px solid #d0d7de;
+        border-radius: 16px;
+        padding: 8px 12px;
+        font-size: 14px;
+        font-weight: 600;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14);
+    }
+    .cloud-chat-helper::after {
+        content: "";
+        position: absolute;
+        left: 18px;
+        bottom: -8px;
+        width: 14px;
+        height: 14px;
+        background: #ffffff;
+        border-right: 1px solid #d0d7de;
+        border-bottom: 1px solid #d0d7de;
+        transform: rotate(45deg);
+    }
     .st-key-cloud_chat_icon {
         position: fixed;
         left: 16px;
-        bottom: 20px;
+        top: 132px;
         z-index: 1000;
     }
     .st-key-cloud_chat_icon button {
@@ -352,7 +378,7 @@ st.markdown(
         width: 44px;
         height: 44px;
         padding: 0;
-        font-size: 20px;
+        font-size: 28px;
         border: 1px solid #cfd8dc;
         box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
     }
@@ -375,7 +401,7 @@ if "chat_messages" not in st.session_state:
 
 
 def get_followup_recommendations(api_key: str, user_message: str, destinations, profile_summary: str):
-    """추천 결과 피드백을 받아 대안을 짧게 제시하는 챗봇 응답을 생성합니다."""
+    """재추천·일정·관광지 제안을 포함한 여행 챗봇 응답을 생성합니다."""
     if not api_key:
         return "사이드바에 OpenAI API Key를 입력하면 바로 다시 추천해 드릴 수 있어요."
 
@@ -391,9 +417,12 @@ def get_followup_recommendations(api_key: str, user_message: str, destinations, 
             {
                 "role": "system",
                 "content": (
-                    "당신은 여행 재추천 전담 챗봇입니다. "
-                    "사용자가 기존 추천의 불만족 포인트를 말하면 공감 1문장 + 대체 여행지 2곳을 매우 간단히 제안하세요. "
-                    "형식은 한국어 마크다운 불릿으로 유지하고, 각 추천지는 한 줄 이유만 작성하세요."
+                    "당신은 여행 도우미 챗봇입니다. "
+                    "사용자의 의도를 먼저 파악해 아래 원칙으로 한국어로 답하세요. "
+                    "1) 추천이 마음에 들지 않는다고 하면 공감 1문장 + 대체 여행지 2곳을 불릿으로 짧게 제안. "
+                    "2) 추천이 마음에 들어 일정/관광지 요청을 하면 사용자의 요구를 반영한 일정 또는 관광지 리스트를 불릿으로 제안. "
+                    "3) 정보가 부족하면 최대 2개의 짧은 확인 질문을 먼저 제시. "
+                    "과도한 설명은 줄이고 바로 실행 가능한 제안을 중심으로 답하세요."
                 ),
             },
             {
@@ -409,6 +438,8 @@ def get_followup_recommendations(api_key: str, user_message: str, destinations, 
 
     return response.choices[0].message.content
 
+
+st.markdown('<div class="cloud-chat-helper">내가 도와줄게...</div>', unsafe_allow_html=True)
 
 if st.button("☁️", key="cloud_chat_icon", help="추천 재요청 챗봇 열기/닫기"):
     st.session_state.chat_open = not st.session_state.chat_open
@@ -1484,15 +1515,40 @@ if st.button("🚀 여행지 3곳 추천받기"):
 
 if st.session_state.chat_open:
     st.markdown("### ☁️ 재추천 챗봇")
-    st.caption("추천이 마음에 들지 않으면 이유를 짧게 적어 주세요. 더 맞는 후보를 간단히 다시 추천해 드려요.")
+    st.caption("재추천은 물론, 마음에 드는 여행지의 일정·관광지도 원하는 스타일에 맞춰 추천해 드려요.")
 
-    chat_container = st.container(border=True)
+    st.markdown(
+        """
+        <style>
+        .chat-expanded-wrap {
+            padding: 12px 8px 20px 8px;
+        }
+        .chat-expanded-wrap [data-testid="stChatMessage"] {
+            font-size: 1.05rem;
+            line-height: 1.7;
+            padding-top: 8px;
+            padding-bottom: 8px;
+        }
+        .chat-expanded-wrap [data-testid="stChatMessageContent"] {
+            padding: 14px 16px;
+        }
+        .chat-expanded-wrap [data-testid="stChatInput"] {
+            margin-top: 16px;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown('<div class="chat-expanded-wrap">', unsafe_allow_html=True)
+    chat_container = st.container(border=True, height=540)
     with chat_container:
         for message in st.session_state.chat_messages:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    user_feedback = st.chat_input("예: 너무 관광지 느낌이라 한적한 자연 위주로 다시 추천해줘")
+    user_feedback = st.chat_input("예: 재추천해줘 / 오사카 3박4일 일정 짜줘 / 비 오는 날 갈만한 관광지 추천해줘")
     if user_feedback:
         st.session_state.chat_messages.append({"role": "user", "content": user_feedback})
 
