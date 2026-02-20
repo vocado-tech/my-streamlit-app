@@ -1840,22 +1840,18 @@ if st.button("🚀 여행지 3곳 추천받기"):
                         map_data = pd.DataFrame({'lat': [dest['latitude']], 'lon': [dest['longitude']]})
                         st.map(map_data, zoom=4)
 
-                        landmark_images = get_landmark_images(dest['name_kr'], limit=6)
+                        landmark_images = get_landmark_images(dest['name_kr'], limit=3)
                         teleport_insight = get_teleport_city_insights(dest['name_kr'])
 
                         if landmark_images:
                             st.markdown("#### 🖼️ 여행지 대표 이미지")
-                            images_per_row = 3 if len(landmark_images) >= 3 else 2
-                            for start_idx in range(0, len(landmark_images), images_per_row):
-                                row_images = landmark_images[start_idx:start_idx + images_per_row]
-                                image_cols = st.columns(images_per_row)
-                                for idx, image_url in enumerate(row_images):
-                                    image_number = start_idx + idx + 1
-                                    with image_cols[idx]:
-                                        st.image(
+                            image_cols = st.columns(3, gap="small")
+                            for idx, image_url in enumerate(landmark_images[:3]):
+                                with image_cols[idx]:
+                                    st.image(
                                         image_url,
-                                        caption=f"{dest['name_kr']} 대표 이미지 {image_number}",
-                                        width=180,
+                                        caption=f"{dest['name_kr']} 대표 이미지 {idx + 1}",
+                                        use_container_width=True,
                                     )
 
                         st.info(f"💡 **추천 이유**: {dest['reason']}")
