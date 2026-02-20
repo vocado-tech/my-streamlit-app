@@ -1806,7 +1806,7 @@ if st.button("🚀 여행지 3곳 추천받기"):
                             for warning_message in regret_risk_warnings:
                                 st.warning(warning_message)
 
-                            st.markdown("#### 🌟 Teleport 기반 장점")
+                            st.markdown("<div style='font-size: 0.95rem; font-weight: 500; margin: 0.25rem 0 0.5rem;'>🌟 그래도 좋은 점</div>", unsafe_allow_html=True)
                             if teleport_insight:
                                 for pro_text in teleport_insight.get("pros", []):
                                     st.success(pro_text)
