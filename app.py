@@ -1540,19 +1540,25 @@ def render_kakao_share_copy_button(share_text: str):
     components.html(
         f"""
         <div style="margin-top:8px; margin-bottom:8px;">
+            <div style="display:flex; align-items:center; gap:6px; font-size:14px; font-weight:600; color:#333;">
+                <span>공유 메세지</span>
             <button id="kakao-copy-btn"
                 style="
-                    background:#FEE500;
-                    color:#191919;
-                    border:none;
-                    border-radius:8px;
-                    padding:8px 12px;
-                    font-size:15px;
-                    font-weight:700;
+                    background:transparent;
+                    color:#333;
+                    border:1px solid #d9d9d9;
+                    border-radius:6px;
+                    width:30px;
+                    height:30px;
+                    display:flex;
+                    align-items:center;
+                    justify-content:center;
+                    font-size:16px;
                     cursor:pointer;
                 ">
-                📋 카카오톡 공유 텍스트 복사
+                📋
             </button>
+            </div>
             <p id="kakao-copy-status" style="margin-top:6px; font-size:13px;"></p>
         </div>
         <script>
@@ -1563,14 +1569,14 @@ def render_kakao_share_copy_button(share_text: str):
             button.addEventListener("click", async () => {{
                 try {{
                     await navigator.clipboard.writeText(textToCopy);
-                    status.textContent = "복사 완료! 친구 단톡방에 바로 붙여넣어 투표를 받아보세요 🙌";
+                    status.textContent = "복사 완료!";
                 }} catch (error) {{
-                    status.textContent = "브라우저 권한 문제로 자동 복사에 실패했어요. 아래 텍스트를 수동 복사해 주세요.";
+                    status.textContent = "자동 복사 실패: 아래 텍스트를 수동 복사해 주세요.";
                 }}
             }});
         </script>
         """,
-        height=96,
+        height=78,
     )
 
 
