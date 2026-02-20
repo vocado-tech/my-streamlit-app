@@ -428,6 +428,32 @@ COUNTRY_CLIMATE_ZONE = {
 }
 
 
+THEMEALDB_AREA_BY_COUNTRY = {
+    "미국": "American",
+    "영국": "British",
+    "캐나다": "Canadian",
+    "중국": "Chinese",
+    "크로아티아": "Croatian",
+    "네덜란드": "Dutch",
+    "이집트": "Egyptian",
+    "프랑스": "French",
+    "인도": "Indian",
+    "아일랜드": "Irish",
+    "이탈리아": "Italian",
+    "말레이시아": "Malaysian",
+    "멕시코": "Mexican",
+    "폴란드": "Polish",
+    "포르투갈": "Portuguese",
+    "러시아": "Russian",
+    "스페인": "Spanish",
+    "태국": "Thai",
+    "튀르키예": "Turkish",
+    "우크라이나": "Ukrainian",
+    "베트남": "Vietnamese",
+    "일본": "Japanese",
+}
+
+
 # 1. 페이지 설정 (유지)
 st.set_page_config(page_title="NoRegret Trip", page_icon="✈️", layout="wide")
 
@@ -654,6 +680,38 @@ def get_landmark_image(query: str):
         return None, "Unsplash 또는 보조 이미지 서비스 접근이 제한되어 이미지를 불러오지 못했어요."
 
 
+def get_landmark_images(query: str, limit: int = 3):
+    """대표 랜드마크 이미지를 최대 limit개 반환합니다."""
+    images = []
+
+    primary_image, _ = get_landmark_image(query)
+    if primary_image:
+        images.append(primary_image)
+
+    try:
+        with DDGS() as ddgs:
+            results = list(
+                ddgs.images(
+                    keywords=f"{query} landmark",
+                    region="kr-kr",
+                    safesearch="moderate",
+                    size="Large",
+                    max_results=max(limit * 2, 4),
+                )
+            )
+
+        for item in results:
+            image_url = item.get("image") or item.get("thumbnail") or item.get("url")
+            if image_url and image_url not in images:
+                images.append(image_url)
+            if len(images) >= limit:
+                break
+    except Exception:
+        pass
+
+    return images[:limit]
+
+
 def get_representative_food(query: str):
     """도시/국가 기준 대표 먹거리 이름과 이미지를 반환합니다."""
     keywords = _extract_destination_keywords(query)
@@ -698,6 +756,58 @@ def get_representative_food(query: str):
         return food_name, food_image, None
 
     return food_name, None, "대표 먹거리 이미지를 찾지 못했어요."
+
+
+@st.cache_data(ttl=3600)
+def get_local_food_recommendations(destination_name: str, limit: int = 3):
+    """TheMealDB로 목적지 국가의 추천 로컬 푸드(레시피/이미지)를 반환합니다."""
+    country = extract_country_from_destination(destination_name)
+    meal_area = THEMEALDB_AREA_BY_COUNTRY.get(country)
+
+    if not meal_area:
+        return []
+
+    try:
+        area_response = requests.get(
+            "https://www.themealdb.com/api/json/v1/1/filter.php",
+            params={"a": meal_area},
+            timeout=8,
+        )
+        area_response.raise_for_status()
+        meals = (area_response.json() or {}).get("meals") or []
+
+        if not meals:
+            return []
+
+        recommendations = []
+        for meal in meals[:limit]:
+            meal_id = meal.get("idMeal")
+            recipe = ""
+            source_url = ""
+
+            if meal_id:
+                detail_response = requests.get(
+                    "https://www.themealdb.com/api/json/v1/1/lookup.php",
+                    params={"i": meal_id},
+                    timeout=8,
+                )
+                detail_response.raise_for_status()
+                detail = ((detail_response.json() or {}).get("meals") or [{}])[0]
+                recipe = detail.get("strInstructions", "")
+                source_url = detail.get("strSource") or detail.get("strYoutube") or ""
+
+            recommendations.append(
+                {
+                    "name": meal.get("strMeal", "Unknown Meal"),
+                    "image": meal.get("strMealThumb", ""),
+                    "recipe": recipe,
+                    "source": source_url,
+                }
+            )
+
+        return recommendations
+    except requests.RequestException:
+        return []
 
 
 def get_best_travel_season(latitude: float):
@@ -1730,32 +1840,19 @@ if st.button("🚀 여행지 3곳 추천받기"):
                         map_data = pd.DataFrame({'lat': [dest['latitude']], 'lon': [dest['longitude']]})
                         st.map(map_data, zoom=4)
 
-                        image_url, image_error = get_landmark_image(dest['name_kr'])
-                        food_name, food_image_url, food_image_error = get_representative_food(dest['name_kr'])
+                        landmark_images = get_landmark_images(dest['name_kr'], limit=3)
                         teleport_insight = get_teleport_city_insights(dest['name_kr'])
 
-                        st.markdown("#### 🖼️ 여행지/먹거리 미리보기")
-                        image_col, food_col = st.columns(2)
-
-                        with image_col:
-                            if image_url:
-                                st.image(
-                                    image_url,
-                                    caption=f"{dest['name_kr']} 대표 랜드마크",
-                                    width=220,
-                                )
-                            else:
-                                st.caption(image_error)
-
-                        with food_col:
-                            if food_image_url:
-                                st.image(
-                                    food_image_url,
-                                    caption=f"대표 먹거리: {food_name}",
-                                    width=220,
-                                )
-                            else:
-                                st.caption(food_image_error)
+                        if landmark_images:
+                            st.markdown("#### 🖼️ 여행지 대표 이미지")
+                            image_cols = st.columns(len(landmark_images))
+                            for idx, image_url in enumerate(landmark_images):
+                                with image_cols[idx]:
+                                    st.image(
+                                        image_url,
+                                        caption=f"{dest['name_kr']} 대표 이미지 {idx + 1}",
+                                        use_container_width=True,
+                                    )
 
                         st.info(f"💡 **추천 이유**: {dest['reason']}")
 
@@ -1857,6 +1954,19 @@ if st.button("🚀 여행지 3곳 추천받기"):
                                         st.markdown(f"- {item}")
                                 else:
                                     st.write(itinerary_items)
+
+                                st.markdown("#### 🍽️ 추천 음식 / 로컬 푸드")
+                                local_foods = get_local_food_recommendations(dest['name_kr'])
+                                if local_foods:
+                                    for meal in local_foods[:3]:
+                                        st.markdown(f"**{meal['name']}**")
+                                        if meal.get("image"):
+                                            st.image(meal["image"], width=200)
+                                        if meal.get("recipe"):
+                                            recipe_preview = meal["recipe"][:180].strip()
+                                            if len(meal["recipe"]) > 180:
+                                                recipe_preview += "..."
+                                            st.caption(f"레시피 요약: {recipe_preview}")
 
                             with col_b:
                                 st.markdown("#### 💰 예상 예산")
