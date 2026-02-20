@@ -517,6 +517,7 @@ def _get_trip_months(travel_dates):
 
 def get_seasonal_travel_note(destination_name: str, latitude: float, travel_dates):
     """여행 기간 평균 기후와 우기/태풍 시즌 경고를 반환합니다."""
+    country = extract_country_from_destination(destination_name)
     zone = COUNTRY_CLIMATE_ZONE.get(country)
 
     if not zone:
@@ -1032,6 +1033,7 @@ def _summarize_entry_requirement_from_search(country: str):
 
 def get_entry_requirement_for_korean_passport(destination_name: str):
     """대한민국 여권 기준 비자/입국 요건을 반환합니다."""
+    country = extract_country_from_destination(destination_name)
     requirement = ENTRY_REQUIREMENTS_BY_COUNTRY.get(country)
 
     if requirement:
