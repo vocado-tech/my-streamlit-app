@@ -691,6 +691,107 @@ def get_seasonal_travel_note(destination_name: str, latitude: float, travel_date
     )
 
 
+def _resolve_travel_date_range(travel_dates):
+    """여행 날짜 입력값을 시작일/종료일로 정규화합니다."""
+    today = datetime.now().date()
+
+    if not travel_dates:
+        return today, today
+
+    if isinstance(travel_dates, (list, tuple)) and len(travel_dates) == 2:
+        start_date, end_date = travel_dates
+    else:
+        start_date = end_date = travel_dates
+
+    if start_date > end_date:
+        start_date, end_date = end_date, start_date
+
+    return start_date, end_date
+
+
+def build_flight_search_links(destination_name: str, airport_code: str, travel_dates):
+    """Google Flights/Skyscanner 검색 링크를 반환합니다."""
+    start_date, end_date = _resolve_travel_date_range(travel_dates)
+    city_name = destination_name.split("(")[0].strip()
+    google_query = f"인천 {city_name} 항공권 {start_date.isoformat()} {end_date.isoformat()}"
+
+    return {
+        "google_flights": f"https://www.google.com/travel/flights?q={quote_plus(google_query)}",
+        "skyscanner": (
+            f"https://www.skyscanner.co.kr/transport/flights/sela/{airport_code.lower()}/"
+            f"{start_date.strftime('%y%m%d')}/{end_date.strftime('%y%m%d')}/"
+        ),
+    }
+
+
+@st.cache_data(show_spinner=False, ttl=60 * 60 * 12)
+def get_flight_price_signal(destination_name: str, airport_code: str, travel_dates):
+    """검색 스니펫 기반으로 선택 기간 항공권이 평소 대비 비싼지/싼지 추정합니다."""
+    months = _get_trip_months(travel_dates)
+    month_text = ", ".join([f"{month}월" for month in months])
+    search_query = f"{destination_name} {month_text} 항공권 성수기 비수기 가격"
+
+    expensive_keywords = ["성수기", "비싸", "요금 상승", "가격 상승", "급등", "peak season", "high season"]
+    cheap_keywords = ["비수기", "저렴", "특가", "할인", "가격 하락", "off-season", "low season"]
+
+    score = 0
+    source = f"https://duckduckgo.com/?q={quote_plus(search_query)}"
+
+    try:
+        with DDGS() as ddgs:
+            items = list(
+                ddgs.text(
+                    keywords=search_query,
+                    region="kr-kr",
+                    safesearch="moderate",
+                    max_results=6,
+                )
+            )
+
+        if not items:
+            return {
+                "label": "보통 수준으로 추정",
+                "emoji": "🟡",
+                "reason": "검색 기반 가격 단서를 충분히 찾지 못해 중립으로 안내합니다.",
+                "source": source,
+            }
+
+        blob = " ".join([(item.get("title", "") + " " + item.get("body", "")).lower() for item in items])
+
+        for keyword in expensive_keywords:
+            score += len(re.findall(re.escape(keyword.lower()), blob))
+        for keyword in cheap_keywords:
+            score -= len(re.findall(re.escape(keyword.lower()), blob))
+
+        if score >= 2:
+            label = "평소보다 비싼 편"
+            emoji = "🔺"
+            reason = "성수기/요금상승 관련 표현이 더 많이 감지되었습니다."
+        elif score <= -2:
+            label = "평소보다 저렴한 편"
+            emoji = "🔻"
+            reason = "비수기/할인 관련 표현이 더 많이 감지되었습니다."
+        else:
+            label = "보통 수준으로 추정"
+            emoji = "🟡"
+            reason = "성수기·비수기 단서가 혼재되어 중립 구간으로 판단했습니다."
+
+        first_source = items[0].get("href") if items else None
+        return {
+            "label": label,
+            "emoji": emoji,
+            "reason": reason,
+            "source": first_source or source,
+        }
+    except Exception as exc:
+        return {
+            "label": "판단 불가",
+            "emoji": "⚪",
+            "reason": f"가격 검색을 불러오지 못했습니다: {exc}",
+            "source": source,
+        }
+
+
 def get_weather_summary(latitude: float, longitude: float, weather_api_key: str):
     """OpenWeather API로 현재 날씨 + 단기 예보를 요약합니다."""
     if not weather_api_key:
@@ -1303,7 +1404,7 @@ travel_dates = st.date_input(
     "여행 날짜 (선택)",
     value=(today, today),
     min_value=today,
-    help="오늘 이후 일정만 선택할 수 있어요. 선택한 기간 기준으로 평균 기온/강수량과 우기·태풍 정보를 안내합니다.",
+    help="오늘 이후 일정만 선택할 수 있어요. 선택한 기간 기준으로 평균 기온/강수량과 우기·태풍 정보, 그리고 Google Flights/Skyscanner 검색 기반 항공권 가격(평소 대비 비쌈/저렴 추정)도 함께 안내합니다.",
 )
 
 etc_req = st.text_input("특별 요청 (예: 사막이 보고 싶어요, 미술관 투어 원함)")
@@ -1473,6 +1574,9 @@ if st.button("🚀 여행지 3곳 추천받기"):
                             st.markdown("#### 🌦️ 여행 기간 기후/시기 적합성")
                             st.markdown(seasonal_note)
 
+                        flight_links = build_flight_search_links(dest['name_kr'], dest['airport_code'], travel_dates)
+                        price_signal = get_flight_price_signal(dest['name_kr'], dest['airport_code'], travel_dates)
+
                         with st.expander("🛂 비자/입국 조건", expanded=False):
                             st.markdown(
                                 f"""
@@ -1517,8 +1621,14 @@ if st.button("🚀 여행지 3곳 추천받기"):
                                     st.caption(budget_items)
 
                         st.markdown("---")
-                        url = f"https://www.skyscanner.co.kr/transport/flights/sela/{dest['airport_code']}"
-                        st.link_button(f"✈️ {dest['name_kr']} 항공권 검색", url)
+                        st.link_button(f"✈️ {dest['name_kr']} 항공권 검색", flight_links["skyscanner"])
+                        st.caption(f"{price_signal['emoji']} {price_signal['label']} · {price_signal['reason']}")
+                        mini_col1, mini_col2 = st.columns([1, 1])
+                        with mini_col1:
+                            st.link_button("Google Flights", flight_links["google_flights"])
+                        with mini_col2:
+                            if price_signal.get("source"):
+                                st.link_button("가격 근거", price_signal["source"])
 
                 st.markdown("---")
                 st.markdown("### 🗳️ 친구들에게 투표받기")
