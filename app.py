@@ -338,6 +338,81 @@ st.set_page_config(page_title="NoRegret Trip", page_icon="✈️", layout="wide"
 st.title("✈️ NoRegret Trip")
 st.subheader("여행 가자 ^~^")
 
+st.markdown(
+    """
+    <style>
+    .st-key-cloud_chat_icon {
+        position: fixed;
+        left: 16px;
+        bottom: 20px;
+        z-index: 1000;
+    }
+    .st-key-cloud_chat_icon button {
+        border-radius: 999px;
+        width: 44px;
+        height: 44px;
+        padding: 0;
+        font-size: 20px;
+        border: 1px solid #cfd8dc;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+if "latest_destinations" not in st.session_state:
+    st.session_state.latest_destinations = []
+if "chat_open" not in st.session_state:
+    st.session_state.chat_open = False
+if "chat_messages" not in st.session_state:
+    st.session_state.chat_messages = [
+        {
+            "role": "assistant",
+            "content": "안녕하세요! ☁️ 추천이 마음에 안 들면 어떤 점이 별로였는지 말해 주세요. 더 잘 맞는 후보를 짧게 다시 추천해 드릴게요.",
+        }
+    ]
+
+
+def get_followup_recommendations(api_key: str, user_message: str, destinations, profile_summary: str):
+    """추천 결과 피드백을 받아 대안을 짧게 제시하는 챗봇 응답을 생성합니다."""
+    if not api_key:
+        return "사이드바에 OpenAI API Key를 입력하면 바로 다시 추천해 드릴 수 있어요."
+
+    destination_summary = "\n".join(
+        [f"- {d.get('name_kr', '')}: {d.get('reason', '')}" for d in destinations[:3]]
+    ) or "- 아직 추천 결과 없음"
+
+    client = OpenAI(api_key=api_key)
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        temperature=0.8,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "당신은 여행 재추천 전담 챗봇입니다. "
+                    "사용자가 기존 추천의 불만족 포인트를 말하면 공감 1문장 + 대체 여행지 2곳을 매우 간단히 제안하세요. "
+                    "형식은 한국어 마크다운 불릿으로 유지하고, 각 추천지는 한 줄 이유만 작성하세요."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"[사용자 여행 프로필]\n{profile_summary}\n\n"
+                    f"[직전 추천]\n{destination_summary}\n\n"
+                    f"[사용자 피드백]\n{user_message}"
+                ),
+            },
+        ],
+    )
+
+    return response.choices[0].message.content
+
+
+if st.button("☁️", key="cloud_chat_icon", help="추천 재요청 챗봇 열기/닫기"):
+    st.session_state.chat_open = not st.session_state.chat_open
+
 
 def _extract_destination_keywords(query: str):
     """도시명(국가명) 형태 문자열에서 검색용 키워드를 추출합니다."""
@@ -1268,6 +1343,7 @@ if st.button("🚀 여행지 3곳 추천받기"):
 
                 result = json.loads(response.choices[0].message.content)
                 destinations = result['destinations']
+                st.session_state.latest_destinations = destinations
 
                 st.success(f"'{duration}' 동안 다녀오기 좋은, 전 세계 여행지를 엄선했습니다! 🌍")
 
@@ -1404,3 +1480,36 @@ if st.button("🚀 여행지 3곳 추천받기"):
 
             except Exception as e:
                 st.error(f"오류가 발생했습니다: {e}")
+
+
+if st.session_state.chat_open:
+    st.markdown("### ☁️ 재추천 챗봇")
+    st.caption("추천이 마음에 들지 않으면 이유를 짧게 적어 주세요. 더 맞는 후보를 간단히 다시 추천해 드려요.")
+
+    chat_container = st.container(border=True)
+    with chat_container:
+        for message in st.session_state.chat_messages:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+
+    user_feedback = st.chat_input("예: 너무 관광지 느낌이라 한적한 자연 위주로 다시 추천해줘")
+    if user_feedback:
+        st.session_state.chat_messages.append({"role": "user", "content": user_feedback})
+
+        profile_summary = (
+            f"기간={duration}, 난이도={difficulty}, 스타일={style}, 예산={budget_level}, 동행={companion}, 운전={no_drive}, 추가요청={etc_req or '없음'}"
+        )
+
+        with st.spinner("피드백 반영해서 다시 골라볼게요..."):
+            try:
+                reply = get_followup_recommendations(
+                    api_key=api_key,
+                    user_message=user_feedback,
+                    destinations=st.session_state.latest_destinations,
+                    profile_summary=profile_summary,
+                )
+            except Exception as e:
+                reply = f"재추천 중 오류가 발생했어요: {e}"
+
+        st.session_state.chat_messages.append({"role": "assistant", "content": reply})
+        st.rerun()
