@@ -384,16 +384,16 @@ st.markdown(
     }
     .st-key-cloud_chat_popup {
         position: fixed;
-        right: 16px;
-        bottom: 128px;
-        width: min(380px, calc(100vw - 32px));
-        max-height: 70vh;
+        right: 24px;
+        bottom: 136px;
+        width: min(570px, calc(100vw - 40px));
+        max-height: 85vh;
         overflow-y: auto;
         background: #ffffff;
         border-radius: 16px;
         box-shadow: 0 16px 36px rgba(0, 0, 0, 0.2);
         z-index: 999;
-        padding: 4px;
+        padding: 14px;
     }
     </style>
     """,
@@ -454,7 +454,7 @@ def get_followup_recommendations(api_key: str, user_message: str, destinations, 
 
 st.markdown('<div class="cloud-chat-helper">내가 도와줄게...</div>', unsafe_allow_html=True)
 
-if st.button("☁️", key="cloud_chat_icon", help="재추천/일정 상담 챗봇 열기·닫기 (☁️ 버튼 클릭)"):
+if st.button("☁️", key="cloud_chat_icon"):
     st.session_state.chat_open = not st.session_state.chat_open
 
 
