@@ -341,6 +341,15 @@ st.subheader("여행 가자 ^~^")
 st.markdown(
     """
     <style>
+    [data-testid="stSidebar"] {
+        background-color: #eef7ff;
+    }
+    [data-testid="stSidebar"] [data-baseweb="select"] > div,
+    [data-testid="stSidebar"] [data-baseweb="select"] input,
+    [data-testid="stSidebar"] [data-baseweb="textarea"] > div,
+    [data-testid="stSidebar"] [data-baseweb="input"] > div {
+        background-color: #f5fbff;
+    }
     .cloud-chat-helper {
         position: fixed;
         right: 16px;
