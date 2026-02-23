@@ -1502,33 +1502,75 @@ def build_primary_caution(regret_risk_warnings, seasonal_note: str):
     return "⚠️ 일교차와 야간 기온을 고려해 얇은 겉옷을 챙기세요."
 
 
-def get_festival_summary(query: str):
-    """DuckDuckGo 텍스트 검색으로 축제/이벤트 정보 요약을 반환합니다."""
-    current_year = datetime.now().year
+def _season_keyword_from_dates(travel_dates):
+    """여행 날짜를 기준으로 검색용 계절 키워드를 계산합니다."""
+    if not travel_dates:
+        month = datetime.now().month
+    else:
+        month = travel_dates[0].month
 
+    if month in (3, 4, 5):
+        return "봄"
+    if month in (6, 7, 8):
+        return "여름"
+    if month in (9, 10, 11):
+        return "가을"
+    return "겨울"
+
+
+def get_local_seasonal_highlights(query: str, travel_dates):
+    """대표 축제 외 지역 명절/계절 포인트/제철 음식 정보를 검색해 요약합니다."""
+    current_year = datetime.now().year
+    season_keyword = _season_keyword_from_dates(travel_dates)
+
+    search_topics = [
+        {
+            "title": "🏮 대표 명절·지역 전통 행사",
+            "keywords": f"{query} local holiday traditional event {current_year}",
+            "fallback": "해당 기간의 지역 명절·전통 행사는 공식 관광청/지자체 일정에서 확인해 주세요.",
+        },
+        {
+            "title": f"❄️🌸 계절 포인트 ({season_keyword})",
+            "keywords": f"{query} {season_keyword} seasonal highlights nature scenery",
+            "fallback": "계절별 자연/풍경 포인트 정보는 관광청 계절 가이드에서 최신 상태를 확인해 주세요.",
+        },
+        {
+            "title": f"🍽️ {season_keyword} 제철 음식",
+            "keywords": f"{query} {season_keyword} seasonal food local cuisine",
+            "fallback": "제철 음식은 현지 시장·식당의 계절 메뉴 기준으로 변동될 수 있어요.",
+        },
+    ]
+
+    sections = []
     try:
         with DDGS() as ddgs:
-            items = list(
-                ddgs.text(
-                    keywords=f"{query} festival event {current_year}",
-                    region="kr-kr",
-                    safesearch="moderate",
-                    max_results=3,
+            for topic in search_topics:
+                items = list(
+                    ddgs.text(
+                        keywords=topic["keywords"],
+                        region="kr-kr",
+                        safesearch="moderate",
+                        max_results=2,
+                    )
                 )
-            )
 
-        if not items:
-            return "검색 결과 기준, 근시일 내 확인 가능한 대표 축제 정보를 찾지 못했어요."
+                section_lines = [f"#### {topic['title']}"]
+                if items:
+                    top_item = items[0]
+                    title = top_item.get("title", "관련 정보")
+                    snippet = top_item.get("body", "자세한 내용은 링크에서 확인해 주세요.")
+                    section_lines.append(f"- **{title}**: {snippet}")
+                else:
+                    section_lines.append(f"- {topic['fallback']}")
 
-        summaries = []
-        for item in items[:2]:
-            title = item.get("title", "이벤트")
-            snippet = item.get("body", "일정 정보는 링크에서 확인해 주세요.")
-            summaries.append(f"- **{title}**: {snippet}")
+                sections.append("\n".join(section_lines))
 
-        return "\n".join(summaries)
+        if not sections:
+            return "검색 결과를 찾지 못했어요. 잠시 후 다시 시도해 주세요."
+
+        return "\n\n".join(sections)
     except Exception as exc:
-        return f"축제 정보를 가져오지 못했어요: {exc}"
+        return f"지역 시즌 정보를 가져오지 못했어요: {exc}"
 
 
 def get_destination_bgm(name_kr: str):
@@ -2261,7 +2303,7 @@ if st.button("🚀 여행지 3곳 추천받기"):
                         regret_risk_warnings = get_regret_risk_warnings(style, dest['name_kr'], dest['reason'])
                         weather_summary = get_weather_summary(dest['latitude'], dest['longitude'], weather_api_key)
                         seasonal_note = get_seasonal_travel_note(dest['name_kr'], dest['latitude'], travel_dates)
-                        festival_summary = get_festival_summary(dest['name_kr'])
+                        seasonal_highlights = get_local_seasonal_highlights(dest['name_kr'], travel_dates)
                         country, entry_info, is_search_based = get_entry_requirement_for_korean_passport(dest['name_kr'])
 
                         regret_ratings, regret_one_liner = build_regret_summary(
@@ -2326,8 +2368,8 @@ if st.button("🚀 여행지 3곳 추천받기"):
                                 if entry_info.get("source"):
                                     st.link_button("🔎 참고 링크(검색 결과)", entry_info["source"])
 
-                        with st.expander("🎉 축제/이벤트", expanded=False):
-                            st.markdown(festival_summary)
+                        with st.expander("🧭 지역 시즌 하이라이트", expanded=False):
+                            st.markdown(seasonal_highlights)
 
                         bgm_title, bgm_url = get_destination_bgm(dest['name_kr'])
                         with st.expander("🎵 여행지 무드 BGM", expanded=False):
