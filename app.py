@@ -1025,6 +1025,53 @@ def _get_trip_months(travel_dates):
     return months or [datetime.now().month]
 
 
+def _build_travel_date_list(travel_dates):
+    """선택한 여행 기간을 일자 리스트로 변환합니다."""
+    if not travel_dates:
+        return []
+
+    if isinstance(travel_dates, (list, tuple)) and len(travel_dates) == 2:
+        start_date, end_date = travel_dates
+        if start_date > end_date:
+            start_date, end_date = end_date, start_date
+    else:
+        start_date = end_date = travel_dates
+
+    total_days = (end_date - start_date).days + 1
+    return [start_date + timedelta(days=offset) for offset in range(total_days)]
+
+
+def format_itinerary_with_dates(itinerary_items, travel_dates):
+    """선택한 기간 날짜에 맞춰 일자별 일정 텍스트를 구성합니다."""
+    if not itinerary_items:
+        itinerary_items = []
+
+    if not isinstance(itinerary_items, list):
+        itinerary_items = [str(itinerary_items)]
+
+    cleaned_items = []
+    for raw_item in itinerary_items:
+        item = str(raw_item).strip()
+        item = re.sub(r"^DAY\s*\d+\s*[:\-]\s*", "", item, flags=re.IGNORECASE)
+        cleaned_items.append(item)
+
+    travel_day_list = _build_travel_date_list(travel_dates)
+    weekday_names = ["월", "화", "수", "목", "금", "토", "일"]
+
+    formatted = []
+    for idx, trip_date in enumerate(travel_day_list):
+        day_plan = (
+            cleaned_items[idx]
+            if idx < len(cleaned_items)
+            else "오전/오후/저녁 동선을 자유 일정으로 구성해 여유롭게 여행하세요."
+        )
+        formatted.append(
+            f"{trip_date.strftime('%Y-%m-%d')} ({weekday_names[trip_date.weekday()]}) · DAY {idx + 1}: {day_plan}"
+        )
+
+    return formatted
+
+
 def get_seasonal_travel_note(destination_name: str, latitude: float, travel_dates):
     """여행 기간 평균 기후와 우기/태풍 시즌 경고를 반환합니다."""
     country = extract_country_from_destination(destination_name)
@@ -2339,11 +2386,9 @@ if st.button("🚀 여행지 3곳 추천받기"):
                             with col_a:
                                 st.markdown("#### 🗓️ 추천 일정")
                                 itinerary_items = dest.get('itinerary', [])
-                                if isinstance(itinerary_items, list):
-                                    for item in itinerary_items:
-                                        st.markdown(f"- {item}")
-                                else:
-                                    st.write(itinerary_items)
+                                dated_itinerary = format_itinerary_with_dates(itinerary_items, travel_dates)
+                                for item in dated_itinerary:
+                                    st.markdown(f"- {item}")
 
                                 local_foods = get_local_food_recommendations(dest['name_kr'])
                                 if local_foods:
