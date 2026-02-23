@@ -771,6 +771,16 @@ def _extract_country_name(query: str):
     return ""
 
 
+def extract_place_name(name_kr: str):
+    """수식어가 포함된 도시 문자열에서 실제 지명만 추출합니다."""
+    place = name_kr.strip()
+    if "(" in place:
+        place = place.split("(")[0].strip()
+    if "," in place:
+        place = place.split(",")[-1].strip()
+    return place
+
+
 def _get_wikipedia_image(query: str):
     """Wikipedia 요약 API를 이용해 대표 이미지를 보조 조회합니다."""
     for keyword in _extract_destination_keywords(query):
@@ -1523,7 +1533,7 @@ def get_festival_summary(query: str):
 
 def get_destination_bgm(name_kr: str):
     """여행지 분위기/지역성을 반영한 유튜브 BGM 플레이리스트를 반환합니다."""
-    city = name_kr.split("(")[0].strip()
+    city = extract_place_name(name_kr)
     country = extract_country_from_destination(name_kr)
 
     city_bgm_map = {
@@ -2109,7 +2119,7 @@ if st.button("🚀 여행지 3곳 추천받기"):
 
                 st.success(f"'{duration}' 동안 다녀오기 좋은, 전 세계 여행지를 엄선했습니다! 🌍")
 
-                tabs = st.tabs([d['name_kr'] for d in destinations])
+                tabs = st.tabs([extract_place_name(d['name_kr']) for d in destinations])
 
                 for i, tab in enumerate(tabs):
                     with tab:
@@ -2129,7 +2139,7 @@ if st.button("🚀 여행지 3곳 추천받기"):
                                 with image_cols[idx]:
                                     st.image(
                                         image_url,
-                                        caption=f"{dest['name_kr']} 대표 이미지 {idx + 1}",
+                                        caption=f"{extract_place_name(dest['name_kr'])} 대표 이미지 {idx + 1}",
                                         use_container_width=True,
                                     )
 
@@ -2261,7 +2271,7 @@ if st.button("🚀 여행지 3곳 추천받기"):
                                     st.caption(budget_items)
 
                         st.markdown("---")
-                        st.link_button(f"✈️ {dest['name_kr']} 항공권 검색", flight_links["skyscanner"])
+                        st.link_button(f"✈️ {extract_place_name(dest['name_kr'])} 항공권 검색", flight_links["skyscanner"])
 
                 st.markdown("---")
                 st.markdown("#### 🗳️ 친구들에게 투표받기")
