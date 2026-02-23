@@ -821,6 +821,7 @@ def _get_unsplash_image(query: str):
     return None
 
 
+@st.cache_data(show_spinner=False, ttl=60 * 60 * 12)
 def get_landmark_image(query: str):
     """Unsplash + DuckDuckGo + Wikipedia 순으로 대표 이미지를 가져옵니다."""
     unsplash_image = _get_unsplash_image(f"{query} landmark")
@@ -860,6 +861,7 @@ def get_landmark_image(query: str):
         return None, "Unsplash 또는 보조 이미지 서비스 접근이 제한되어 이미지를 불러오지 못했어요."
 
 
+@st.cache_data(show_spinner=False, ttl=60 * 60 * 12)
 def get_landmark_images(query: str, limit: int = 3):
     """대표 랜드마크 이미지를 최대 limit개 반환합니다."""
     images = []
@@ -892,6 +894,7 @@ def get_landmark_images(query: str, limit: int = 3):
     return images[:limit]
 
 
+@st.cache_data(show_spinner=False, ttl=60 * 60 * 12)
 def get_representative_food(query: str):
     """도시/국가 기준 대표 먹거리 이름과 이미지를 반환합니다."""
     keywords = _extract_destination_keywords(query)
@@ -1352,6 +1355,7 @@ def get_teleport_city_insights(destination_name: str):
         return None
 
 
+@st.cache_data(show_spinner=False, ttl=60 * 10)
 def get_weather_summary(latitude: float, longitude: float, weather_api_key: str):
     """OpenWeather API로 현재 날씨 + 단기 예보를 요약합니다."""
     if not weather_api_key:
@@ -1400,6 +1404,7 @@ def get_weather_summary(latitude: float, longitude: float, weather_api_key: str)
         return f"날씨 정보를 가져오지 못했어요: {exc}"
 
 
+@st.cache_data(show_spinner=False, ttl=60 * 60)
 def build_regret_summary(api_key: str, destination_name: str, reason_text: str, regret_risk_warnings, teleport_insight=None):
     """AI로 추천도 별점/한줄 요약을 생성하고, 실패 시 휴리스틱으로 보정합니다."""
     warning_count = len(regret_risk_warnings)
@@ -1553,6 +1558,7 @@ def build_primary_caution(regret_risk_warnings, seasonal_note: str):
     return "⚠️ 일교차와 야간 기온을 고려해 얇은 겉옷을 챙기세요."
 
 
+@st.cache_data(show_spinner=False, ttl=60 * 60 * 12)
 def get_festival_summary(query: str):
     """DuckDuckGo 텍스트 검색으로 축제/이벤트 정보 요약을 반환합니다."""
     current_year = datetime.now().year
