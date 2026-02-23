@@ -46,6 +46,30 @@ COUNTRY_NAME_ALIASES = {
     "헝가리": "hungary",
     "핀란드": "finland",
     "노르웨이": "norway",
+    "덴마크": "denmark",
+    "벨기에": "belgium",
+    "아일랜드": "ireland",
+    "멕시코": "mexico",
+    "스웨덴": "sweden",
+    "폴란드": "poland",
+    "그리스": "greece",
+    "브라질": "brazil",
+    "아르헨티나": "argentina",
+    "칠레": "chile",
+    "페루": "peru",
+    "남아프리카공화국": "south africa",
+    "모로코": "morocco",
+    "카타르": "qatar",
+    "대한민국": "south korea",
+    "한국": "south korea",
+    "마카오": "macao",
+    "캄보디아": "cambodia",
+    "미얀마": "myanmar",
+    "네팔": "nepal",
+    "스리랑카": "sri lanka",
+    "우즈베키스탄": "uzbekistan",
+    "카자흐스탄": "kazakhstan",
+    "조지아": "georgia",
 }
 
 CITY_NAME_ALIASES = {
@@ -104,6 +128,32 @@ CITY_NAME_ALIASES = {
     "부다페스트": "budapest",
     "헬싱키": "helsinki",
     "오슬로": "oslo",
+    "코펜하겐": "copenhagen",
+    "브뤼셀": "brussels",
+    "더블린": "dublin",
+    "스톡홀름": "stockholm",
+    "바르샤바": "warsaw",
+    "아테네": "athens",
+    "멕시코시티": "mexico city",
+    "리우데자네이루": "rio de janeiro",
+    "부에노스아이레스": "buenos aires",
+    "산티아고": "santiago",
+    "리마": "lima",
+    "케이프타운": "cape town",
+    "마라케시": "marrakesh",
+    "도하": "doha",
+    "서울": "seoul",
+    "부산": "busan",
+    "제주": "jeju",
+    "마카오": "macao",
+    "프놈펜": "phnom penh",
+    "시엠립": "siem reap",
+    "양곤": "yangon",
+    "카트만두": "kathmandu",
+    "콜롬보": "colombo",
+    "타슈켄트": "tashkent",
+    "알마티": "almaty",
+    "트빌리시": "tbilisi",
 }
 
 ENTRY_REQUIREMENTS_BY_COUNTRY = {
@@ -338,6 +388,120 @@ ENTRY_REQUIREMENTS_BY_COUNTRY = {
     "멕시코": {
         "visa": "무비자 입국 가능",
         "stay": "통상 최대 180일 (심사관 재량)",
+        "eta": "ESTA/ETA 불필요",
+        "passport": "체류기간 동안 유효한 여권 필요",
+    },
+    "스웨덴": {
+        "visa": "쉥겐 90일 이하 무비자",
+        "stay": "180일 중 최대 90일",
+        "eta": "ESTA/ETA 불필요 (ETIAS 시행 시 변경 가능)",
+        "passport": "출국예정일 기준 3개월 이상 + 발급 후 10년 이내",
+    },
+    "폴란드": {
+        "visa": "쉥겐 90일 이하 무비자",
+        "stay": "180일 중 최대 90일",
+        "eta": "ESTA/ETA 불필요 (ETIAS 시행 시 변경 가능)",
+        "passport": "출국예정일 기준 3개월 이상 + 발급 후 10년 이내",
+    },
+    "그리스": {
+        "visa": "쉥겐 90일 이하 무비자",
+        "stay": "180일 중 최대 90일",
+        "eta": "ESTA/ETA 불필요 (ETIAS 시행 시 변경 가능)",
+        "passport": "출국예정일 기준 3개월 이상 + 발급 후 10년 이내",
+    },
+    "브라질": {
+        "visa": "단기 방문 무비자",
+        "stay": "최대 90일 (연장 가능 여부 별도 확인)",
+        "eta": "ESTA/ETA 불필요",
+        "passport": "입국 시 통상 6개월 이상 유효기간 권장",
+    },
+    "아르헨티나": {
+        "visa": "90일 이하 무비자",
+        "stay": "최대 90일",
+        "eta": "ESTA/ETA 불필요",
+        "passport": "체류기간 동안 유효한 여권 필요",
+    },
+    "칠레": {
+        "visa": "90일 이하 무비자",
+        "stay": "최대 90일",
+        "eta": "ESTA/ETA 불필요",
+        "passport": "체류기간 이상 유효한 여권 필요",
+    },
+    "페루": {
+        "visa": "무비자 입국 가능",
+        "stay": "통상 최대 90일 (입국 심사 재량)",
+        "eta": "ESTA/ETA 불필요",
+        "passport": "입국일 기준 6개월 이상 유효기간 권장",
+    },
+    "남아프리카공화국": {
+        "visa": "90일 이하 무비자",
+        "stay": "최대 90일",
+        "eta": "ESTA/ETA 불필요",
+        "passport": "입국일 기준 30일 이상 + 빈 사증면 필요",
+    },
+    "모로코": {
+        "visa": "90일 이하 무비자",
+        "stay": "최대 90일",
+        "eta": "ESTA/ETA 불필요",
+        "passport": "입국 시 통상 6개월 이상 유효기간 권장",
+    },
+    "카타르": {
+        "visa": "무비자 입국 가능 (입국 시 체류 허가)",
+        "stay": "통상 최대 30일",
+        "eta": "ESTA/ETA 불필요",
+        "passport": "입국 시 통상 6개월 이상 유효기간 필요",
+    },
+    "대한민국": {
+        "visa": "해당 없음 (자국민)",
+        "stay": "해당 없음",
+        "eta": "해당 없음",
+        "passport": "해당 없음",
+    },
+    "마카오": {
+        "visa": "90일 이하 무비자",
+        "stay": "최대 90일",
+        "eta": "ESTA/ETA 불필요",
+        "passport": "입국 시 통상 3개월 이상 유효기간 권장",
+    },
+    "캄보디아": {
+        "visa": "비자 필요 (e-Visa/도착비자 가능)",
+        "stay": "통상 30일",
+        "eta": "e-Arrival Card 등 사전 등록 여부 확인 권장",
+        "passport": "입국 시 6개월 이상 유효기간 필요",
+    },
+    "미얀마": {
+        "visa": "비자 필요 (전자비자 가능 여부 수시 변동)",
+        "stay": "비자 종류 및 승인 조건에 따름",
+        "eta": "전자비자(eVisa) 가능 여부 최신 공지 확인 필요",
+        "passport": "입국 시 6개월 이상 유효기간 필요",
+    },
+    "네팔": {
+        "visa": "도착비자 또는 e-Visa 가능",
+        "stay": "통상 15/30/90일 옵션",
+        "eta": "ESTA/ETA 불필요",
+        "passport": "입국 시 6개월 이상 유효기간 권장",
+    },
+    "스리랑카": {
+        "visa": "전자여행허가(ETA) 사전 신청 필요",
+        "stay": "통상 30일",
+        "eta": "스리랑카 ETA 필요",
+        "passport": "입국 시 통상 6개월 이상 유효기간 필요",
+    },
+    "우즈베키스탄": {
+        "visa": "30일 이하 무비자",
+        "stay": "최대 30일",
+        "eta": "ESTA/ETA 불필요",
+        "passport": "입국 시 통상 6개월 이상 유효기간 권장",
+    },
+    "카자흐스탄": {
+        "visa": "30일 이하 무비자",
+        "stay": "최대 30일",
+        "eta": "ESTA/ETA 불필요",
+        "passport": "입국 시 통상 6개월 이상 유효기간 권장",
+    },
+    "조지아": {
+        "visa": "무비자 입국 가능",
+        "stay": "통상 최대 1년",
         "eta": "ESTA/ETA 불필요",
         "passport": "체류기간 동안 유효한 여권 필요",
     },
@@ -1701,6 +1865,10 @@ def _summarize_entry_requirement_from_search(country: str):
 def get_entry_requirement_for_korean_passport(destination_name: str):
     """대한민국 여권 기준 비자/입국 요건을 반환합니다."""
     country = extract_country_from_destination(destination_name)
+
+    if country in {"한국", "South Korea", "Korea", "Republic of Korea"}:
+        country = "대한민국"
+
     requirement = ENTRY_REQUIREMENTS_BY_COUNTRY.get(country)
 
     if requirement:
