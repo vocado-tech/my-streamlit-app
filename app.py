@@ -699,6 +699,10 @@ st.markdown(
 
 if "latest_destinations" not in st.session_state:
     st.session_state.latest_destinations = []
+if "latest_duration" not in st.session_state:
+    st.session_state.latest_duration = None
+if "latest_travel_dates" not in st.session_state:
+    st.session_state.latest_travel_dates = None
 if "chat_open" not in st.session_state:
     st.session_state.chat_open = False
 if "chat_messages" not in st.session_state:
@@ -2168,8 +2172,176 @@ travel_dates = (departure_date, arrival_date)
 
 etc_req = st.text_input("특별 요청 (예: 사막이 보고 싶어요, 미술관 투어 원함)")
 
+
+def render_destination_results(destinations, duration_label, selected_travel_dates):
+    st.success(f"'{duration_label}' 동안 다녀오기 좋은, 전 세계 여행지를 엄선했습니다! 🌍")
+
+    tabs = st.tabs([extract_place_name(d['name_kr']) for d in destinations])
+
+    for i, tab in enumerate(tabs):
+        with tab:
+            dest = destinations[i]
+            st.header(f"📍 {dest['name_kr']}")
+
+            map_data = pd.DataFrame({'lat': [dest['latitude']], 'lon': [dest['longitude']]})
+            st.map(map_data, zoom=4)
+
+            landmark_images = get_landmark_images(dest['name_kr'], limit=3)
+            teleport_insight = get_teleport_city_insights(dest['name_kr'])
+
+            if landmark_images:
+                st.markdown("#### 🖼️ 여행지 대표 이미지")
+                image_cols = st.columns(3, gap="small")
+                for idx, image_url in enumerate(landmark_images[:3]):
+                    with image_cols[idx]:
+                        st.image(
+                            image_url,
+                            caption=f"{extract_place_name(dest['name_kr'])} 대표 이미지 {idx + 1}",
+                            use_container_width=True,
+                        )
+
+            st.info(f"💡 **추천 이유**: {dest['reason']}")
+
+            if teleport_insight:
+                with st.expander("🛰️ Teleport 도시 인사이트", expanded=False):
+                    if teleport_insight.get("summary"):
+                        st.markdown(f"**도시 한줄 요약**: {teleport_insight['summary']}")
+
+                    top_categories = teleport_insight.get("top_categories", [])
+                    bottom_categories = teleport_insight.get("bottom_categories", [])
+                    if top_categories or bottom_categories:
+                        category_rows = []
+                        for category_name, score in top_categories:
+                            category_rows.append({"구분": "강점", "지표": category_name, "점수(0~10)": score})
+                        for category_name, score in bottom_categories:
+                            category_rows.append({"구분": "유의", "지표": category_name, "점수(0~10)": score})
+                        st.dataframe(pd.DataFrame(category_rows), hide_index=True, use_container_width=True)
+
+                    if teleport_insight.get("teleport_url"):
+                        st.link_button("🔗 Teleport 도시 프로필 보기", teleport_insight["teleport_url"])
+
+            regret_risk_warnings = get_regret_risk_warnings(style, dest['name_kr'], dest['reason'])
+            weather_summary = get_weather_summary(dest['latitude'], dest['longitude'], weather_api_key)
+            seasonal_note = get_seasonal_travel_note(dest['name_kr'], dest['latitude'], selected_travel_dates)
+            festival_summary = get_festival_summary(dest['name_kr'])
+            country, entry_info, is_search_based = get_entry_requirement_for_korean_passport(dest['name_kr'])
+
+            regret_ratings, regret_one_liner = build_regret_summary(
+                api_key,
+                dest['name_kr'],
+                dest['reason'],
+                regret_risk_warnings,
+                teleport_insight,
+            )
+            regret_risk_warnings = ensure_minimum_regret_warning(regret_risk_warnings)
+            weather_emoji, weather_core = build_weather_emoji_display(weather_summary)
+            budget_summary = build_budget_range_summary(dest['total_budget'])
+            total_budget_in_manwon = to_manwon_text(dest['total_budget'])
+
+            st.markdown("#### ✅ 상단 요약")
+            metric_col1, metric_col2, metric_col3 = st.columns(3)
+            with metric_col1:
+                st.metric("추천도", regret_ratings)
+                st.caption(regret_one_liner)
+            with metric_col2:
+                st.markdown("**날씨 핵심**")
+                st.markdown(f"<div style='font-size: 4rem; line-height: 1;'>{weather_emoji}</div>", unsafe_allow_html=True)
+                st.caption(weather_core)
+            with metric_col3:
+                st.metric("예산 총액", budget_summary)
+                st.caption(total_budget_in_manwon)
+
+            with st.expander("🧠 😢 상세", expanded=False):
+                for warning_message in regret_risk_warnings:
+                    st.warning(warning_message)
+
+                st.markdown("<div style='font-size: 0.95rem; font-weight: 500; margin: 0.25rem 0 0.5rem;'>🌟 그래도 좋은 점</div>", unsafe_allow_html=True)
+                if teleport_insight:
+                    for pro_text in teleport_insight.get("pros", []):
+                        st.success(pro_text)
+                else:
+                    st.success("✅ 단점이 있더라도 일정 난이도·예산만 맞추면 충분히 만족도 높은 여행이 될 수 있어요.")
+
+                if teleport_insight and teleport_insight.get("cons"):
+                    st.markdown("#### ⚠️ Teleport 기반 단점/주의점")
+                    for con_text in teleport_insight.get("cons", []):
+                        st.warning(con_text)
+
+            with st.expander("🌤️ 날씨 자세히", expanded=False):
+                st.write(weather_summary)
+                st.markdown("#### 🌦️ 여행 기간 기후/시기 적합성")
+                st.markdown(seasonal_note)
+
+            flight_links = build_flight_search_links(dest['name_kr'], dest['airport_code'], selected_travel_dates)
+
+            with st.expander("🛂 비자/입국 조건", expanded=False):
+                st.markdown(
+                    f"""
+                    - **비자 필요 여부**: {entry_info['visa']}
+                    - **체류 가능 기간**: {entry_info['stay']}
+                    - **ESTA / ETA 필요 여부**: {entry_info['eta']}
+                    - **여권 유효기간 조건**: {entry_info['passport']}
+                    """
+                )
+                if is_search_based:
+                    st.caption("※ 위 정보는 실시간 검색 요약입니다. 예약/출국 전 외교부 해외안전여행 및 해당국 대사관 공지로 최종 확인하세요.")
+                    if entry_info.get("source"):
+                        st.link_button("🔎 참고 링크(검색 결과)", entry_info["source"])
+
+            with st.expander("🎉 축제/이벤트", expanded=False):
+                st.markdown(festival_summary)
+
+            bgm_title, bgm_url = get_destination_bgm(dest['name_kr'])
+            with st.expander("🎵 여행지 무드 BGM", expanded=False):
+                st.caption(bgm_title)
+                st.video(bgm_url)
+
+            with st.expander("🗓️ 일정/예산 상세", expanded=False):
+                col_a, col_b = st.columns(2)
+                with col_a:
+                    st.markdown("#### 🗓️ 추천 일정")
+                    itinerary_items = dest.get('itinerary', [])
+                    dated_itinerary = format_itinerary_with_dates(itinerary_items, selected_travel_dates)
+                    for item in dated_itinerary:
+                        st.markdown(f"- {item}")
+
+                    local_foods = get_local_food_recommendations(dest['name_kr'])
+                    if local_foods:
+                        st.markdown("#### 🍽️ 추천 음식 / 로컬 푸드")
+                        meal_cols = st.columns(min(3, len(local_foods)))
+                        for idx, meal in enumerate(local_foods[:3]):
+                            with meal_cols[idx]:
+                                st.markdown(f"**{meal['name']}**")
+                                if meal.get("image"):
+                                    st.image(meal["image"], width=160)
+
+                with col_b:
+                    st.markdown("#### 💰 예상 예산")
+                    st.success(f"**{dest['total_budget']}**")
+                    budget_items = dest.get('budget_detail', [])
+                    if isinstance(budget_items, list):
+                        for item in budget_items:
+                            st.caption(f"• {item}")
+                    else:
+                        st.caption(budget_items)
+
+            st.markdown("---")
+            st.link_button(f"✈️ {extract_place_name(dest['name_kr'])} 항공권 검색", flight_links["skyscanner"])
+
+    st.markdown("---")
+    st.markdown("#### 🗳️ 친구들에게 투표받기")
+    share_options = [f"{idx + 1}. {d['name_kr']}" for idx, d in enumerate(destinations[:3])]
+    share_text = (
+        "나 이번에 여행 가는데 어디가 좋을까? "
+        + " ".join(share_options)
+        + " 투표 좀!"
+    )
+    render_kakao_share_copy_button(share_text)
+    st.text_area("공유 텍스트 미리보기", value=share_text, height=72)
+
 # 4. 추천 버튼
-if st.button("🚀 여행지 3곳 추천받기"):
+recommend_clicked = st.button("🚀 여행지 3곳 추천받기")
+if recommend_clicked:
     if not api_key:
         st.error("⚠️ 사이드바에 OpenAI API Key를 먼저 입력해주세요!")
     else:
@@ -2258,175 +2430,17 @@ if st.button("🚀 여행지 3곳 추천받기"):
                 result = json.loads(response.choices[0].message.content)
                 destinations = result['destinations']
                 st.session_state.latest_destinations = destinations
-
-                st.success(f"'{duration}' 동안 다녀오기 좋은, 전 세계 여행지를 엄선했습니다! 🌍")
-
-                tabs = st.tabs([extract_place_name(d['name_kr']) for d in destinations])
-
-                for i, tab in enumerate(tabs):
-                    with tab:
-                        dest = destinations[i]
-                        st.header(f"📍 {dest['name_kr']}")
-
-                        map_data = pd.DataFrame({'lat': [dest['latitude']], 'lon': [dest['longitude']]})
-                        st.map(map_data, zoom=4)
-
-                        landmark_images = get_landmark_images(dest['name_kr'], limit=3)
-                        teleport_insight = get_teleport_city_insights(dest['name_kr'])
-
-                        if landmark_images:
-                            st.markdown("#### 🖼️ 여행지 대표 이미지")
-                            image_cols = st.columns(3, gap="small")
-                            for idx, image_url in enumerate(landmark_images[:3]):
-                                with image_cols[idx]:
-                                    st.image(
-                                        image_url,
-                                        caption=f"{extract_place_name(dest['name_kr'])} 대표 이미지 {idx + 1}",
-                                        use_container_width=True,
-                                    )
-
-                        st.info(f"💡 **추천 이유**: {dest['reason']}")
-
-                        if teleport_insight:
-                            with st.expander("🛰️ Teleport 도시 인사이트", expanded=False):
-                                if teleport_insight.get("summary"):
-                                    st.markdown(f"**도시 한줄 요약**: {teleport_insight['summary']}")
-
-                                top_categories = teleport_insight.get("top_categories", [])
-                                bottom_categories = teleport_insight.get("bottom_categories", [])
-                                if top_categories or bottom_categories:
-                                    category_rows = []
-                                    for category_name, score in top_categories:
-                                        category_rows.append({"구분": "강점", "지표": category_name, "점수(0~10)": score})
-                                    for category_name, score in bottom_categories:
-                                        category_rows.append({"구분": "유의", "지표": category_name, "점수(0~10)": score})
-                                    st.dataframe(pd.DataFrame(category_rows), hide_index=True, use_container_width=True)
-
-                                if teleport_insight.get("teleport_url"):
-                                    st.link_button("🔗 Teleport 도시 프로필 보기", teleport_insight["teleport_url"])
-
-                        regret_risk_warnings = get_regret_risk_warnings(style, dest['name_kr'], dest['reason'])
-                        weather_summary = get_weather_summary(dest['latitude'], dest['longitude'], weather_api_key)
-                        seasonal_note = get_seasonal_travel_note(dest['name_kr'], dest['latitude'], travel_dates)
-                        festival_summary = get_festival_summary(dest['name_kr'])
-                        country, entry_info, is_search_based = get_entry_requirement_for_korean_passport(dest['name_kr'])
-
-                        regret_ratings, regret_one_liner = build_regret_summary(
-                            api_key,
-                            dest['name_kr'],
-                            dest['reason'],
-                            regret_risk_warnings,
-                            teleport_insight,
-                        )
-                        regret_risk_warnings = ensure_minimum_regret_warning(regret_risk_warnings)
-                        weather_emoji, weather_core = build_weather_emoji_display(weather_summary)
-                        budget_summary = build_budget_range_summary(dest['total_budget'])
-                        total_budget_in_manwon = to_manwon_text(dest['total_budget'])
-
-                        st.markdown("#### ✅ 상단 요약")
-                        metric_col1, metric_col2, metric_col3 = st.columns(3)
-                        with metric_col1:
-                            st.metric("추천도", regret_ratings)
-                            st.caption(regret_one_liner)
-                        with metric_col2:
-                            st.markdown("**날씨 핵심**")
-                            st.markdown(f"<div style='font-size: 4rem; line-height: 1;'>{weather_emoji}</div>", unsafe_allow_html=True)
-                            st.caption(weather_core)
-                        with metric_col3:
-                            st.metric("예산 총액", budget_summary)
-                            st.caption(total_budget_in_manwon)
-
-                        with st.expander("🧠 😢 상세", expanded=False):
-                            for warning_message in regret_risk_warnings:
-                                st.warning(warning_message)
-
-                            st.markdown("<div style='font-size: 0.95rem; font-weight: 500; margin: 0.25rem 0 0.5rem;'>🌟 그래도 좋은 점</div>", unsafe_allow_html=True)
-                            if teleport_insight:
-                                for pro_text in teleport_insight.get("pros", []):
-                                    st.success(pro_text)
-                            else:
-                                st.success("✅ 단점이 있더라도 일정 난이도·예산만 맞추면 충분히 만족도 높은 여행이 될 수 있어요.")
-
-                            if teleport_insight and teleport_insight.get("cons"):
-                                st.markdown("#### ⚠️ Teleport 기반 단점/주의점")
-                                for con_text in teleport_insight.get("cons", []):
-                                    st.warning(con_text)
-
-                        with st.expander("🌤️ 날씨 자세히", expanded=False):
-                            st.write(weather_summary)
-                            st.markdown("#### 🌦️ 여행 기간 기후/시기 적합성")
-                            st.markdown(seasonal_note)
-
-                        flight_links = build_flight_search_links(dest['name_kr'], dest['airport_code'], travel_dates)
-
-                        with st.expander("🛂 비자/입국 조건", expanded=False):
-                            st.markdown(
-                                f"""
-                                - **비자 필요 여부**: {entry_info['visa']}
-                                - **체류 가능 기간**: {entry_info['stay']}
-                                - **ESTA / ETA 필요 여부**: {entry_info['eta']}
-                                - **여권 유효기간 조건**: {entry_info['passport']}
-                                """
-                            )
-                            if is_search_based:
-                                st.caption("※ 위 정보는 실시간 검색 요약입니다. 예약/출국 전 외교부 해외안전여행 및 해당국 대사관 공지로 최종 확인하세요.")
-                                if entry_info.get("source"):
-                                    st.link_button("🔎 참고 링크(검색 결과)", entry_info["source"])
-
-                        with st.expander("🎉 축제/이벤트", expanded=False):
-                            st.markdown(festival_summary)
-
-                        bgm_title, bgm_url = get_destination_bgm(dest['name_kr'])
-                        with st.expander("🎵 여행지 무드 BGM", expanded=False):
-                            st.caption(bgm_title)
-                            st.video(bgm_url)
-
-                        with st.expander("🗓️ 일정/예산 상세", expanded=False):
-                            col_a, col_b = st.columns(2)
-                            with col_a:
-                                st.markdown("#### 🗓️ 추천 일정")
-                                itinerary_items = dest.get('itinerary', [])
-                                dated_itinerary = format_itinerary_with_dates(itinerary_items, travel_dates)
-                                for item in dated_itinerary:
-                                    st.markdown(f"- {item}")
-
-                                local_foods = get_local_food_recommendations(dest['name_kr'])
-                                if local_foods:
-                                    st.markdown("#### 🍽️ 추천 음식 / 로컬 푸드")
-                                    meal_cols = st.columns(min(3, len(local_foods)))
-                                    for idx, meal in enumerate(local_foods[:3]):
-                                        with meal_cols[idx]:
-                                            st.markdown(f"**{meal['name']}**")
-                                            if meal.get("image"):
-                                                st.image(meal["image"], width=160)
-
-                            with col_b:
-                                st.markdown("#### 💰 예상 예산")
-                                st.success(f"**{dest['total_budget']}**")
-                                budget_items = dest.get('budget_detail', [])
-                                if isinstance(budget_items, list):
-                                    for item in budget_items:
-                                        st.caption(f"• {item}")
-                                else:
-                                    st.caption(budget_items)
-
-                        st.markdown("---")
-                        st.link_button(f"✈️ {extract_place_name(dest['name_kr'])} 항공권 검색", flight_links["skyscanner"])
-
-                st.markdown("---")
-                st.markdown("#### 🗳️ 친구들에게 투표받기")
-                share_options = [f"{idx + 1}. {d['name_kr']}" for idx, d in enumerate(destinations[:3])]
-                share_text = (
-                    "나 이번에 여행 가는데 어디가 좋을까? "
-                    + " ".join(share_options)
-                    + " 투표 좀!"
-                )
-                render_kakao_share_copy_button(share_text)
-                st.text_area("공유 텍스트 미리보기", value=share_text, height=72)
+                st.session_state.latest_duration = duration
+                st.session_state.latest_travel_dates = travel_dates
 
             except Exception as e:
                 st.error(f"오류가 발생했습니다: {e}")
 
+
+if st.session_state.latest_destinations:
+    stored_duration = st.session_state.latest_duration or duration
+    stored_travel_dates = st.session_state.latest_travel_dates or travel_dates
+    render_destination_results(st.session_state.latest_destinations, stored_duration, stored_travel_dates)
 
 if st.session_state.chat_open:
     chat_container = st.container(border=True, key="cloud_chat_popup")
