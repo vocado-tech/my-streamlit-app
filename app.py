@@ -5,7 +5,7 @@ import json
 import pandas as pd
 import requests
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import quote_plus
 from duckduckgo_search import DDGS
 
@@ -917,6 +917,18 @@ def _resolve_travel_date_range(travel_dates):
     return start_date, end_date
 
 
+def _get_trip_days_from_duration(duration_label: str) -> int:
+    duration_days = {
+        "1박 2일": 2,
+        "2박 3일": 3,
+        "3박 4일": 4,
+        "4박 5일": 5,
+        "일주일 (6박 7일)": 7,
+        "일주일 이상 (장기/유럽/미주 가능)": 8,
+    }
+    return duration_days.get(duration_label, 2)
+
+
 def build_flight_search_links(destination_name: str, airport_code: str, travel_dates):
     """Skyscanner 검색 링크를 반환합니다."""
     start_date, end_date = _resolve_travel_date_range(travel_dates)
@@ -1785,12 +1797,18 @@ with col2:
     no_drive = st.checkbox("운전 못해요ㅠㅠ (렌트카 없이 다니고 싶어요)")
 
 today = datetime.now().date()
-travel_dates = st.date_input(
-    "여행 날짜 (선택)",
-    value=(today, today),
+departure_date = st.date_input(
+    "출발 날짜 (선택)",
+    value=today,
     min_value=today,
-    help="오늘 이후 일정만 선택할 수 있어요. 선택한 기간 기준으로 평균 기온/강수량과 우기·태풍 정보를 함께 안내합니다.",
+    help="출발일만 고르면 여행 기간에 맞춰 도착일이 자동 계산돼요.",
 )
+
+trip_days = _get_trip_days_from_duration(duration)
+arrival_date = departure_date + timedelta(days=trip_days - 1)
+travel_dates = (departure_date, arrival_date)
+
+st.caption(f"자동 선택된 도착 날짜: **{arrival_date.strftime('%Y-%m-%d')}**")
 
 etc_req = st.text_input("특별 요청 (예: 사막이 보고 싶어요, 미술관 투어 원함)")
 
