@@ -1537,54 +1537,149 @@ def get_destination_bgm(name_kr: str):
     country = extract_country_from_destination(name_kr)
 
     city_bgm_map = {
-        "파리": ("파리 재즈 카페 & 샹송 무드", "https://www.youtube.com/watch?v=cTLTG4FTNBQ"),
-        "도쿄": ("도쿄 시티팝 드라이브", "https://www.youtube.com/watch?v=3bNITQR4Uso"),
-        "오사카": ("오사카 네온 스트리트 시티팝", "https://www.youtube.com/watch?v=3bNITQR4Uso"),
-        "교토": ("교토 전통 악기 힐링 무드", "https://www.youtube.com/watch?v=4zG7WcW2nQ4"),
-        "치앙마이": ("치앙마이 카페 감성 로파이", "https://www.youtube.com/watch?v=5qap5aO4i9A"),
-        "방콕": ("방콕 루프탑 나이트 무드", "https://www.youtube.com/watch?v=JfVOs4VSpmA"),
-        "다낭": ("다낭 해변 선셋 칠 음악", "https://www.youtube.com/watch?v=DWcJFNfaw9c"),
-        "하노이": ("하노이 올드쿼터 베트남 감성", "https://www.youtube.com/watch?v=uaf4iR5Vw9s"),
-        "뉴올리언스": ("뉴올리언스 스트리트 재즈", "https://www.youtube.com/watch?v=Dx5qFachd3A"),
-        "리스본": ("리스본 파두(Fado) 감성", "https://www.youtube.com/watch?v=QhBwrn7fG9k"),
-        "세비야": ("세비야 플라멩코 무드", "https://www.youtube.com/watch?v=t4H_Zoh7G5A"),
-        "이비사": ("이비사 비치 하우스 뮤직", "https://www.youtube.com/watch?v=1bJY4wF2J3A"),
-        "두바이": ("사막 드라이브 아라비안 라운지", "https://www.youtube.com/watch?v=4jP06Wk6M4Q"),
-        "카이로": ("카이로 아라빅 오리엔탈 무드", "https://www.youtube.com/watch?v=_O6fQkS3SIA"),
-        "울란바토르": ("몽골 초원 & 호미(Hoomei) 무드", "https://www.youtube.com/watch?v=9e9v4M9RjvY"),
+        "파리": [
+            ("파리 재즈 카페 & 샹송 무드", "https://www.youtube.com/watch?v=cTLTG4FTNBQ"),
+            ("프렌치 카페 아코디언 무드", "https://www.youtube.com/watch?v=DX9xA7gQ8V8"),
+        ],
+        "도쿄": [
+            ("도쿄 시티팝 드라이브", "https://www.youtube.com/watch?v=3bNITQR4Uso"),
+            ("도쿄 나이트 시티 재즈", "https://www.youtube.com/watch?v=neV3EPgvZ3g"),
+        ],
+        "오사카": [
+            ("오사카 네온 스트리트 시티팝", "https://www.youtube.com/watch?v=3bNITQR4Uso"),
+            ("일본 야경 감성 로파이", "https://www.youtube.com/watch?v=5yx6BWlEVcY"),
+        ],
+        "교토": [
+            ("교토 전통 악기 힐링 무드", "https://www.youtube.com/watch?v=4zG7WcW2nQ4"),
+            ("일본 전통 선율 명상 무드", "https://www.youtube.com/watch?v=H6M0EulApMM"),
+        ],
+        "치앙마이": [
+            ("치앙마이 카페 감성 로파이", "https://www.youtube.com/watch?v=5qap5aO4i9A"),
+            ("트로피컬 카페 칠 무드", "https://www.youtube.com/watch?v=rUxyKA_-grg"),
+        ],
+        "방콕": [
+            ("방콕 루프탑 나이트 무드", "https://www.youtube.com/watch?v=JfVOs4VSpmA"),
+            ("태국 야시장 감성 비트", "https://www.youtube.com/watch?v=M5QY2_8704o"),
+        ],
+        "다낭": [
+            ("다낭 해변 선셋 칠 음악", "https://www.youtube.com/watch?v=DWcJFNfaw9c"),
+            ("비치 선셋 칠아웃 라운지", "https://www.youtube.com/watch?v=7NOSDKb0HlU"),
+        ],
+        "하노이": [
+            ("하노이 올드쿼터 베트남 감성", "https://www.youtube.com/watch?v=uaf4iR5Vw9s"),
+            ("베트남 카페 어쿠스틱 무드", "https://www.youtube.com/watch?v=qaK4C8f8QeY"),
+        ],
+        "뉴올리언스": [
+            ("뉴올리언스 스트리트 재즈", "https://www.youtube.com/watch?v=Dx5qFachd3A"),
+            ("스윙 재즈 클럽 라이브", "https://www.youtube.com/watch?v=HMnrl0tmd3k"),
+        ],
+        "리스본": [
+            ("리스본 파두(Fado) 감성", "https://www.youtube.com/watch?v=QhBwrn7fG9k"),
+            ("포르투갈 기타 나이트 무드", "https://www.youtube.com/watch?v=EJeM7Q2q5Hw"),
+        ],
+        "세비야": [
+            ("세비야 플라멩코 무드", "https://www.youtube.com/watch?v=t4H_Zoh7G5A"),
+            ("스페인 기타 & 플라멩코 라이브", "https://www.youtube.com/watch?v=6jS8k6JwB-A"),
+        ],
+        "이비사": [
+            ("이비사 비치 하우스 뮤직", "https://www.youtube.com/watch?v=1bJY4wF2J3A"),
+            ("비치 클럽 칠 하우스", "https://www.youtube.com/watch?v=Q6MemVxEquE"),
+        ],
+        "두바이": [
+            ("사막 드라이브 아라비안 라운지", "https://www.youtube.com/watch?v=4jP06Wk6M4Q"),
+            ("미들 이스트 라운지 무드", "https://www.youtube.com/watch?v=tTL3kGxbl9M"),
+        ],
+        "카이로": [
+            ("카이로 아라빅 오리엔탈 무드", "https://www.youtube.com/watch?v=_O6fQkS3SIA"),
+            ("오리엔탈 전통 퍼커션 무드", "https://www.youtube.com/watch?v=owtDZFilZ6A"),
+        ],
+        "울란바토르": [
+            ("몽골 초원 & 호미(Hoomei) 무드", "https://www.youtube.com/watch?v=9e9v4M9RjvY"),
+            ("몽골 전통 현악/목가적 무드", "https://www.youtube.com/watch?v=p_5yt5IX38I"),
+        ],
     }
 
     country_bgm_map = {
-        "일본": ("일본 여행 무드 시티팝/재즈", "https://www.youtube.com/watch?v=3bNITQR4Uso"),
-        "중국": ("중국 전통 악기 + 현대 퓨전 무드", "https://www.youtube.com/watch?v=9U8kbM_BhWc"),
-        "대만": ("대만 야시장 감성 인디팝", "https://www.youtube.com/watch?v=qM4vYf6A5LQ"),
-        "홍콩": ("홍콩 야경 시네마틱 무드", "https://www.youtube.com/watch?v=AD8G7f8J6Vg"),
-        "베트남": ("베트남 로컬 감성 어쿠스틱", "https://www.youtube.com/watch?v=uaf4iR5Vw9s"),
-        "태국": ("태국 트로피컬 칠 & 로컬 무드", "https://www.youtube.com/watch?v=JfVOs4VSpmA"),
-        "싱가포르": ("싱가포르 마리나 베이 라운지", "https://www.youtube.com/watch?v=6zXDo4dL7SU"),
-        "미국": ("미국 로드트립 클래식 플레이리스트", "https://www.youtube.com/watch?v=gEPmA3USJdI"),
-        "영국": ("런던 브릿팝 & 인디 감성", "https://www.youtube.com/watch?v=VbfpW0pbvaU"),
-        "프랑스": ("프랑스 샹송 & 파리지앵 재즈", "https://www.youtube.com/watch?v=cTLTG4FTNBQ"),
-        "스페인": ("스페인 플라멩코 & 기타 무드", "https://www.youtube.com/watch?v=t4H_Zoh7G5A"),
-        "포르투갈": ("포르투갈 파두(Fado) 감성", "https://www.youtube.com/watch?v=QhBwrn7fG9k"),
-        "튀르키예": ("이스탄불 보스포루스 오리엔탈 무드", "https://www.youtube.com/watch?v=T4k_qws0k4E"),
-        "아랍에미리트": ("중동 라운지 & 아라비안 나이트", "https://www.youtube.com/watch?v=4jP06Wk6M4Q"),
-        "이집트": ("이집트 전통 리듬 & 오리엔탈 무드", "https://www.youtube.com/watch?v=_O6fQkS3SIA"),
-        "몽골": ("몽골 전통/초원 무드 사운드", "https://www.youtube.com/watch?v=9e9v4M9RjvY"),
+        "일본": [
+            ("일본 여행 무드 시티팝/재즈", "https://www.youtube.com/watch?v=3bNITQR4Uso"),
+            ("일본 로파이/재즈 플레이리스트", "https://www.youtube.com/watch?v=neV3EPgvZ3g"),
+        ],
+        "중국": [
+            ("중국 전통 악기 + 현대 퓨전 무드", "https://www.youtube.com/watch?v=9U8kbM_BhWc"),
+            ("중국 고전 선율 힐링 플레이리스트", "https://www.youtube.com/watch?v=Mh0x8mH5vPM"),
+        ],
+        "대만": [
+            ("대만 야시장 감성 인디팝", "https://www.youtube.com/watch?v=qM4vYf6A5LQ"),
+            ("대만 카페 감성 로파이", "https://www.youtube.com/watch?v=5qap5aO4i9A"),
+        ],
+        "홍콩": [
+            ("홍콩 야경 시네마틱 무드", "https://www.youtube.com/watch?v=AD8G7f8J6Vg"),
+            ("네온 시티 신스웨이브 무드", "https://www.youtube.com/watch?v=MVPTGNGiI-4"),
+        ],
+        "베트남": [
+            ("베트남 로컬 감성 어쿠스틱", "https://www.youtube.com/watch?v=uaf4iR5Vw9s"),
+            ("동남아 트래블 칠 플레이리스트", "https://www.youtube.com/watch?v=DWcJFNfaw9c"),
+        ],
+        "태국": [
+            ("태국 트로피컬 칠 & 로컬 무드", "https://www.youtube.com/watch?v=JfVOs4VSpmA"),
+            ("트로피컬 하우스 여행 무드", "https://www.youtube.com/watch?v=7NOSDKb0HlU"),
+        ],
+        "싱가포르": [
+            ("싱가포르 마리나 베이 라운지", "https://www.youtube.com/watch?v=6zXDo4dL7SU"),
+            ("어반 라운지/칠아웃 플레이리스트", "https://www.youtube.com/watch?v=qGaOlfmX8rQ"),
+        ],
+        "미국": [
+            ("미국 로드트립 클래식 플레이리스트", "https://www.youtube.com/watch?v=gEPmA3USJdI"),
+            ("로드트립 인디/포크 무드", "https://www.youtube.com/watch?v=V1Pl8CzNzCw"),
+        ],
+        "영국": [
+            ("런던 브릿팝 & 인디 감성", "https://www.youtube.com/watch?v=VbfpW0pbvaU"),
+            ("UK 인디 감성 플레이리스트", "https://www.youtube.com/watch?v=lTRiuFIWV54"),
+        ],
+        "프랑스": [
+            ("프랑스 샹송 & 파리지앵 재즈", "https://www.youtube.com/watch?v=cTLTG4FTNBQ"),
+            ("프렌치 카페 무드 재즈", "https://www.youtube.com/watch?v=DX9xA7gQ8V8"),
+        ],
+        "스페인": [
+            ("스페인 플라멩코 & 기타 무드", "https://www.youtube.com/watch?v=t4H_Zoh7G5A"),
+            ("스페인 기타 칠 무드", "https://www.youtube.com/watch?v=6jS8k6JwB-A"),
+        ],
+        "포르투갈": [
+            ("포르투갈 파두(Fado) 감성", "https://www.youtube.com/watch?v=QhBwrn7fG9k"),
+            ("파두 기타 라이브 감성", "https://www.youtube.com/watch?v=EJeM7Q2q5Hw"),
+        ],
+        "튀르키예": [
+            ("이스탄불 보스포루스 오리엔탈 무드", "https://www.youtube.com/watch?v=T4k_qws0k4E"),
+            ("터키 전통 & 현대 퓨전 무드", "https://www.youtube.com/watch?v=9fM2v1Vh4hk"),
+        ],
+        "아랍에미리트": [
+            ("중동 라운지 & 아라비안 나이트", "https://www.youtube.com/watch?v=4jP06Wk6M4Q"),
+            ("아라비안 라운지 칠아웃", "https://www.youtube.com/watch?v=tTL3kGxbl9M"),
+        ],
+        "이집트": [
+            ("이집트 전통 리듬 & 오리엔탈 무드", "https://www.youtube.com/watch?v=_O6fQkS3SIA"),
+            ("오리엔탈 클래식 인스트루멘탈", "https://www.youtube.com/watch?v=owtDZFilZ6A"),
+        ],
+        "몽골": [
+            ("몽골 전통/초원 무드 사운드", "https://www.youtube.com/watch?v=9e9v4M9RjvY"),
+            ("몽골 민속 선율 플레이리스트", "https://www.youtube.com/watch?v=p_5yt5IX38I"),
+        ],
     }
 
     fallback_candidates = [
         ("잔잔한 여행 로파이 라이브", "https://www.youtube.com/watch?v=jfKfPfyJRdk"),
         ("여행 브이로그용 감성 BGM 모음", "https://www.youtube.com/watch?v=DWcJFNfaw9c"),
+        ("트래블 칠아웃 플레이리스트", "https://www.youtube.com/watch?v=7NOSDKb0HlU"),
+        ("카페 로파이 집중 음악", "https://www.youtube.com/watch?v=5qap5aO4i9A"),
     ]
 
-    for keyword, bgm_info in city_bgm_map.items():
+    for keyword, bgm_candidates in city_bgm_map.items():
         if keyword in city:
-            return pick_available_bgm([bgm_info], f"{city} travel bgm playlist")
+            return pick_available_bgm([*bgm_candidates, *fallback_candidates], f"{city} travel bgm playlist")
 
-    for keyword, bgm_info in country_bgm_map.items():
+    for keyword, bgm_candidates in country_bgm_map.items():
         if keyword in country:
-            return pick_available_bgm([bgm_info], f"{country} travel bgm playlist")
+            return pick_available_bgm([*bgm_candidates, *fallback_candidates], f"{country} travel bgm playlist")
 
     return pick_available_bgm(
         [
