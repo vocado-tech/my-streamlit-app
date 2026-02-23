@@ -458,7 +458,6 @@ THEMEALDB_AREA_BY_COUNTRY = {
 st.set_page_config(page_title="NoRegret Trip", page_icon="✈️", layout="wide")
 
 st.title("✈️ NoRegret Trip")
-st.subheader("여행 가자 ^~^")
 
 st.markdown(
     """
@@ -497,6 +496,9 @@ st.markdown(
         border-right: 1px solid #d0d7de;
         border-bottom: 1px solid #d0d7de;
         transform: rotate(45deg);
+    }
+    [data-testid="stAppViewContainer"] h1 {
+        font-weight: 700;
     }
     .st-key-cloud_chat_icon {
         position: fixed;
@@ -1745,20 +1747,22 @@ def render_kakao_share_copy_button(share_text: str):
 
 # 2. 사이드바 (유지)
 with st.sidebar:
+    st.subheader("여행 가자 ^~^")
+    st.markdown("---")
     api_key = st.text_input("OpenAI API Key를 입력하세요", type="password")
     weather_api_key = st.text_input("OpenWeather API Key를 입력하세요", type="password")
-    st.markdown("---")
-    st.markdown("### 🌐 외부 정보 연동")
-    st.caption("대표 이미지는 Unsplash(보조: DuckDuckGo/Wikipedia), 검색 기반 요약은 DuckDuckGo, 날씨는 OpenWeather API를 사용합니다.")
-
     st.markdown("---")
     st.write("💡 **팁**")
     st.write("- **'일주일 이상'**을 선택해야 유럽/미주 등 장거리 추천이 나옵니다.")
     st.write("- **'모험가'**를 선택하면 더 이색적인 곳이 나옵니다.")
     st.write("- 오른쪽 아래 **☁️ 버튼**을 누르면 재추천/일정 상담 챗봇이 열립니다.")
 
+    st.markdown("---")
+    st.markdown("### 🌐 외부 정보 연동")
+    st.caption("대표 이미지는 Unsplash(보조: DuckDuckGo/Wikipedia), 검색 기반 요약은 DuckDuckGo, 날씨는 OpenWeather API를 사용합니다.")
+
 # 3. 메인 화면 입력 (유지)
-st.markdown("### 📋 여행 스타일을 골라주세요")
+st.markdown("#### 여행 스타일을 골라주세요")
 
 col1, col2 = st.columns(2)
 with col1:
