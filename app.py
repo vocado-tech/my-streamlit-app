@@ -1797,18 +1797,54 @@ with col2:
     no_drive = st.checkbox("운전 못해요ㅠㅠ (렌트카 없이 다니고 싶어요)")
 
 today = datetime.now().date()
-departure_date = st.date_input(
-    "출발 날짜 (선택)",
-    value=today,
+trip_days = _get_trip_days_from_duration(duration)
+st.session_state["trip_days"] = trip_days
+
+
+def _sync_travel_date_range():
+    selected_range = st.session_state.get("travel_date_range")
+
+    if isinstance(selected_range, (list, tuple)) and len(selected_range) >= 1:
+        departure = selected_range[0]
+    else:
+        departure = selected_range or today
+
+    if departure < today:
+        departure = today
+
+    arrival = departure + timedelta(days=st.session_state["trip_days"] - 1)
+    st.session_state["departure_date"] = departure
+    st.session_state["travel_date_range"] = (departure, arrival)
+
+
+if "departure_date" not in st.session_state:
+    st.session_state["departure_date"] = today
+
+if st.session_state["departure_date"] < today:
+    st.session_state["departure_date"] = today
+
+arrival_date = st.session_state["departure_date"] + timedelta(days=trip_days - 1)
+auto_range = (st.session_state["departure_date"], arrival_date)
+
+if st.session_state.get("travel_date_range") != auto_range:
+    st.session_state["travel_date_range"] = auto_range
+
+travel_dates = st.date_input(
+    "여행 날짜",
+    value=st.session_state["travel_date_range"],
     min_value=today,
-    help="출발일만 고르면 여행 기간에 맞춰 도착일이 자동 계산돼요.",
+    help="출발일을 클릭하면 여행 기간에 맞춰 도착일이 자동 선택됩니다.",
+    key="travel_date_range",
+    on_change=_sync_travel_date_range,
 )
 
-trip_days = _get_trip_days_from_duration(duration)
-arrival_date = departure_date + timedelta(days=trip_days - 1)
-travel_dates = (departure_date, arrival_date)
+if isinstance(travel_dates, (list, tuple)) and len(travel_dates) == 2:
+    departure_date, arrival_date = travel_dates
+else:
+    departure_date = travel_dates
+    arrival_date = departure_date + timedelta(days=trip_days - 1)
 
-st.caption(f"자동 선택된 도착 날짜: **{arrival_date.strftime('%Y-%m-%d')}**")
+travel_dates = (departure_date, arrival_date)
 
 etc_req = st.text_input("특별 요청 (예: 사막이 보고 싶어요, 미술관 투어 원함)")
 
