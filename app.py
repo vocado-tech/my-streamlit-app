@@ -714,16 +714,44 @@ if "chat_messages" not in st.session_state:
     ]
 
 
-def get_followup_recommendations(api_key: str, user_message: str, destinations, profile_summary: str):
+def get_followup_recommendations(
+    api_key: str,
+    user_message: str,
+    destinations,
+    profile_summary: str,
+    chat_history,
+):
     """재추천·일정·관광지 제안을 포함한 여행 챗봇 응답을 생성합니다."""
     if not api_key:
         return "사이드바에 OpenAI API Key를 입력하면 바로 다시 추천해 드릴 수 있어요."
 
-    destination_summary = "\n".join(
-        [f"- {d.get('name_kr', '')}: {d.get('reason', '')}" for d in destinations[:3]]
-    ) or "- 아직 추천 결과 없음"
+    destination_summary_lines = []
+    for idx, destination in enumerate(destinations[:3], start=1):
+        name = destination.get("name_kr", "이름 미상")
+        reason = destination.get("reason", "추천 이유 없음")
+        itinerary = destination.get("itinerary", [])
+        itinerary_preview = ", ".join(itinerary[:2]) if isinstance(itinerary, list) else str(itinerary)
+        budget = destination.get("total_budget", "예산 정보 없음")
+
+        destination_summary_lines.append(
+            f"{idx}. {name}\n- 추천 이유: {reason}\n- 일정 요약: {itinerary_preview or '정보 없음'}\n- 예상 예산: {budget}"
+        )
+
+    destination_summary = "\n".join(destination_summary_lines) or "- 아직 추천 결과 없음"
 
     client = OpenAI(api_key=api_key)
+    conversation_history = [
+        {
+            "role": message.get("role", "user"),
+            "content": message.get("content", ""),
+        }
+        for message in chat_history[-10:]
+        if message.get("content")
+    ]
+
+    if not conversation_history or conversation_history[-1].get("content") != user_message:
+        conversation_history.append({"role": "user", "content": user_message})
+
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         temperature=0.8,
@@ -736,17 +764,19 @@ def get_followup_recommendations(api_key: str, user_message: str, destinations, 
                     "1) 추천이 마음에 들지 않는다고 하면 공감 1문장 + 대체 여행지 2곳을 불릿으로 짧게 제안. "
                     "2) 추천이 마음에 들어 일정/관광지 요청을 하면 사용자의 요구를 반영한 일정 또는 관광지 리스트를 불릿으로 제안. "
                     "3) 정보가 부족하면 최대 2개의 짧은 확인 질문을 먼저 제시. "
+                    "4) 이전 대화 맥락을 기억해 자연스럽게 이어서 답하고, 사용자가 정정하면 최신 요청을 우선 반영. "
+                    "5) 앱이 직전에 추천한 여행지 정보를 우선 참고해 대화하세요. "
                     "과도한 설명은 줄이고 바로 실행 가능한 제안을 중심으로 답하세요."
                 ),
             },
             {
-                "role": "user",
+                "role": "system",
                 "content": (
                     f"[사용자 여행 프로필]\n{profile_summary}\n\n"
-                    f"[직전 추천]\n{destination_summary}\n\n"
-                    f"[사용자 피드백]\n{user_message}"
+                    f"[앱의 직전 추천 여행지 상세]\n{destination_summary}"
                 ),
             },
+            *conversation_history,
         ],
     )
 
@@ -2480,6 +2510,7 @@ if st.session_state.chat_open:
                     user_message=user_feedback,
                     destinations=st.session_state.latest_destinations,
                     profile_summary=profile_summary,
+                    chat_history=st.session_state.chat_messages,
                 )
             except Exception as e:
                 reply = f"재추천 중 오류가 발생했어요: {e}"
